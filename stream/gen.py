@@ -180,6 +180,29 @@ class BSGen(torch.nn.Module):
         # return torch.gt(self.source, self.rng_seq[rng_idx.type(torch.long)]).type(self.stype)
         return e
 
+
+class GenBitstream(torch.nn.Module):
+    """
+    Compare source data with rng_seq[rng_idx] to generate bit streams from source
+    only one rng sequence is used here
+    """
+
+    def __init__(self,
+                 source_data,
+                 rng_seq,
+                 stype=torch.float):
+        super(GenBitstream, self).__init__()
+        # self.source_data = source_data
+        self.rng_seq = rng_seq
+        self.stype = stype
+
+    def forward(self, input_data):
+        len = self.rng_seq.size(0)
+        source_data_seq = torch.full(len , input_data )
+        bitstream = (source_data_seq > self.rng_seq).int()
+        return bitstream
+
+
 class BSGenMulti(torch.nn.Module):
     """
     Compare source data with rng_seq indexed with rng_idx to generate bit streams from source

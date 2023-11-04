@@ -1,5 +1,5 @@
 import torch
-from UnarySim.kernel.shiftreg import ShiftReg
+from  kernel.shiftreg import ShiftReg
 
 class FSUAbs(torch.nn.Module):
     """

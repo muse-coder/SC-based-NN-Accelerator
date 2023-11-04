@@ -1,5 +1,5 @@
 import torch
-from UnarySim.stream.gen import RNG
+from stream.gen import RNG
 
 class FSUAdd(torch.nn.Module):
     """

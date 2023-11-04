@@ -1,8 +1,8 @@
 import torch
 import math
-from UnarySim.stream.gen import RNG, RNGMulti, SourceGen, BSGen, BSGenMulti
+from  stream.gen import RNG, RNGMulti, SourceGen, BSGen, BSGenMulti
 from torch.cuda.amp import autocast
-from UnarySim.kernel.add import FSUAdd
+from  kernel.add import FSUAdd
 
 class FSULinear(torch.nn.Module):
     """
@@ -1231,9 +1231,85 @@ class FxpLinearFunction(torch.autograd.Function):
         
         output = torch.empty(0, device=weight.device)
         torch.matmul(input_round, wght_round.transpose(1, 2), out=output)
+
         new_rshift_output =int(abs(rshift_output))
         # output = (output >> int(abs(rshift_output))).squeeze_(1)
         output = (output / (2**new_rshift_output) ).squeeze_(1)
+
+        if bias is not None:
+            output += bias.unsqueeze(0).expand_as(output)
+        return output
+
+    # This function has only a single output, so it gets only one gradient
+    @staticmethod
+    def backward(ctx, grad_output):
+        # This is a pattern that is very convenient - at the top of backward
+        # unpack saved_tensors and initialize all gradients w.r.t. inputs to
+        # None. Thanks to the fact that additional trailing Nones are
+        # ignored, the return statement is simple even when the function has
+        # optional inputs.
+        input, weight, bias = ctx.saved_tensors
+        grad_input = grad_weight = grad_bias = None
+
+        # These needs_input_grad checks are optional and there only to
+        # improve efficiency. If you want to make your code simpler, you can
+        # skip them. Returning gradients for inputs that don't require it is
+        # not an error.
+        if ctx.needs_input_grad[0]:
+            grad_input = grad_output.matmul(weight)
+        if ctx.needs_input_grad[1]:
+            grad_weight = grad_output.t().matmul(input)
+        if bias is not None and ctx.needs_input_grad[2]:
+            grad_bias = grad_output.sum(0)
+
+        return grad_input, grad_weight, grad_bias, None, None, None, None, None
+
+
+# Inherit from Function
+class SC_based_LinearFunction(torch.autograd.Function):
+
+    # Note that both forward and backward are @staticmethods
+    @staticmethod
+    # bias is an optional argument
+    def forward(ctx, input, weight, bias=None,
+                rshift_input=3,
+                rshift_wght=3,
+                rshift_output=3,
+                max_abs_input=128,
+                max_abs_wght=128):
+        ctx.save_for_backward(input, weight, bias)
+
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # input preparation
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # round input to (bot, top)
+        bot_input = 0 - max_abs_input
+        top_input = max_abs_input - 1
+        input_round = torch.empty(0, device=input.device)
+        if (rshift_input < 0):
+            rshift_input = -rshift_input
+            # torch.round(input << rshift_input, out=input_round)
+            torch.round(input * (2 ** rshift_input), out=input_round)
+        else:
+            print("rshift >=0 ")
+        torch.clamp(input_round.unsqueeze_(1), bot_input, top_input, out=input_round)
+
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # weight preparation
+        # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+        # round input to (bot, top)
+        bot_wght = 0 - max_abs_wght
+        top_wght = max_abs_wght - 1
+        wght_round = torch.empty(0, device=input.device)
+        if (rshift_wght < 0):
+            torch.round(weight * (2 ** -rshift_wght), out=wght_round)
+        torch.clamp(wght_round.unsqueeze_(0), bot_wght, top_wght, out=wght_round)
+
+        output = torch.empty(0, device=weight.device)
+        torch.matmul(input_round, wght_round.transpose(1, 2), out=output)
+        new_rshift_output = int(abs(rshift_output))
+        # output = (output >> int(abs(rshift_output))).squeeze_(1)
+        output = (output / (2 ** new_rshift_output)).squeeze_(1)
 
         if bias is not None:
             output += bias.unsqueeze(0).expand_as(output)

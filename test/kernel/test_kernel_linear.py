@@ -1,8 +1,8 @@
 # %%
 import torch
-from UnarySim.kernel.linear import FSULinear
-from UnarySim.stream.gen import RNG, SourceGen, BSGen
-from UnarySim.metric.metric import ProgError
+from  kernel.linear import FSULinear
+from  stream.gen import RNG, SourceGen, BSGen
+from  metric.metric import ProgError
 import matplotlib.pyplot as plt
 import time
 import torch.autograd.profiler as profiler

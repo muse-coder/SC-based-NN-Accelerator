@@ -1,6 +1,6 @@
 # %%
 import torch
-from UnarySim.kernel.linear import *
+from  kernel.linear import *
 import matplotlib.pyplot as plt
 import time
 import math

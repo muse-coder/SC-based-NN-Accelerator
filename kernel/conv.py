@@ -1,10 +1,10 @@
 import torch
 import math
-from UnarySim.stream.gen import RNG, RNGMulti, SourceGen, BSGen, BSGenMulti
-from UnarySim.kernel.utils import conv2d_output_shape, num2tuple
-from UnarySim.kernel.linear import HUBLinearFunction
-from UnarySim.kernel.linear import FxpLinearFunction
-from UnarySim.kernel.add import FSUAdd
+from  stream.gen import RNG, RNGMulti, SourceGen, BSGen, BSGenMulti
+from  kernel.utils import conv2d_output_shape, num2tuple
+from  kernel.linear import HUBLinearFunction
+from  kernel.linear import FxpLinearFunction
+from  kernel.add import FSUAdd
 from torch.cuda.amp import autocast
 
 class FSUConv2d(torch.nn.Module):
