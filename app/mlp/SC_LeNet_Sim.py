@@ -21,11 +21,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # %%
 # MNIST data loader
 transform=transforms.Compose([transforms.Resize((32, 32)), transforms.ToTensor()])
-
-trainset = torchvision.datasets.MNIST(root='./data/mnist', train=True, download=True, transform=transform)
+# D:\postgraduate\Accelerator\Unary Computing\data\mnist
+trainset = torchvision.datasets.MNIST(root='D:\postgraduate\Accelerator\\Unary Computing\\data\mnist', train=True, download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True, num_workers=4)
 
-testset = torchvision.datasets.MNIST(root='./data/mnist', train=False, download=True, transform=transform)
+testset = torchvision.datasets.MNIST(root='D:\postgraduate\Accelerator\\Unary Computing\\data\mnist', train=False, download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(testset, batch_size=1, num_workers=4)
 
 # %%

@@ -132,13 +132,25 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize((0.1307,), (0.3081,))
         ])
-    dataset1 = datasets.MNIST('D:\data\mnist', train=True, download=True,
+    dataset1 = datasets.MNIST('D:\postgraduate\Accelerator\\Unary Computing\data\mnist', train=True, download=True,
                        transform=transform)
-    dataset2 = datasets.MNIST('D:\data\mnist', train=False,
+    dataset2 = datasets.MNIST('D:\postgraduate\Accelerator\\Unary Computing\data\mnist', train=False,
                        transform=transform)
     train_loader = torch.utils.data.DataLoader(dataset1,**train_kwargs)
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
-    
+
+    Train = False
+    if Train:
+        model = Net().to(device)
+        optimizer = optim.Adadelta(model.parameters(), lr=args.lr)
+        scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+        for epoch in range(1, args.epochs + 1):
+            train(args, model, device, train_loader, optimizer, epoch)
+            test(model, device, test_loader)
+            scheduler.step()
+        # if args.save_model:
+        torch.save(model.state_dict(), "unary_stream_mnist_cnn.pt")
+
     checkpoint = torch.load("mnist_cnn.pt", map_location=device)
     cycle_list = [args.cycle for x in range(4)]
     print("test sa model without retraining")

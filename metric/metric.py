@@ -2,6 +2,7 @@ import torch
 import math
 import numpy as np
 from UnarySim.stream.gen import RNG, SourceGen, BSGen
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class Correlation(torch.nn.Module):
     """
@@ -82,9 +83,12 @@ class ProgError(torch.nn.Module):
         self.out_pp.data = self.one_cnt.div(self.len)
         if self.mode == "bipolar":
             self.out_pp.data = self.out_pp.mul(2).sub(1)
-        self.err.data = self.out_pp.sub(self.in_value)
+        # self.err.data = self.out_pp.sub(self.in_value)
+        # self.err.data = abs(self.out_pp.sub(self.in_value))/self.out_pp  #计算相对误差
+        self.err.data =  abs((self.out_pp.sub(self.in_value)).div(self.in_value))   # 计算相对误差
+
         return self.out_pp, self.err
-    
+
     
 class Stability(torch.nn.Module):
     """
@@ -179,7 +183,7 @@ class NormStability(torch.nn.Module):
         self.in_value = in_value
         self.mode = mode
         self.threshold = torch.nn.Parameter(torch.tensor([threshold]), requires_grad=False)
-        self.stability = Stability(in_value, mode=mode, threshold=threshold)
+        self.stability = Stability(in_value, mode=mode, threshold=threshold).to(device)
         self.min_prob = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
         self.max_prob = torch.nn.Parameter(torch.zeros(1), requires_grad=False)
         if mode == "bipolar":
@@ -209,15 +213,16 @@ class NormStability(torch.nn.Module):
         P_high_L_all = torch.ceil(self.max_prob*L).clamp(0, L.item())
         seach_range = (self.threshold * 2 * L + 1).type(torch.int32)
 
-        max_stab_len, max_stab_R, max_stab_l_p = search_best_stab_parallel_numpy(P_low_L_all.type(torch.int32).numpy(), 
-                                                                                 P_high_L_all.type(torch.int32).numpy(), 
-                                                                                 L.type(torch.int32).numpy(), 
-                                                                                 seach_range.numpy())
+        max_stab_len, max_stab_R, max_stab_l_p = search_best_stab_parallel_numpy(P_low_L_all.type(torch.int32).cpu().numpy(), 
+                                                                                 P_high_L_all.type(torch.int32).cpu().numpy(), 
+                                                                                 L.type(torch.int32).cpu().numpy(), 
+                                                                                 seach_range.cpu().numpy())
         
-        self.max_stab.data = torch.from_numpy(np.maximum(1 - max_stab_len/self.len.numpy(), 0))
-        self.max_stab_len.data = torch.from_numpy(max_stab_len)
-        self.max_stab_l_p.data = torch.from_numpy(max_stab_l_p)
-        self.max_stab_R.data = torch.from_numpy(max_stab_R)
+        self.max_stab.data = torch.from_numpy(np.maximum(1 - max_stab_len/self.len.cpu().numpy(), 0)).to(device)
+        # new_max_stab_data = torch.maximum((1-max_stab_len/self.len),0)
+        self.max_stab_len.data = torch.from_numpy(max_stab_len).to(device)
+        self.max_stab_l_p.data = torch.from_numpy(max_stab_l_p).to(device)
+        self.max_stab_R.data = torch.from_numpy(max_stab_R).to(device)
         
         normstab = self.stability()/self.max_stab
         normstab[torch.isnan(normstab)] = 0
@@ -319,10 +324,10 @@ class NSbuilder(torch.nn.Module):
         
         seach_range = (self.T * 2 * self.L + 1).type(torch.int32)
         
-        max_stab_len, max_stab_R, max_stab_l_p = search_best_stab_parallel_numpy(lower.type(torch.int32).numpy(), 
-                                                                                 upper.type(torch.int32).numpy(), 
-                                                                                 self.L.type(torch.int32).numpy(), 
-                                                                                 seach_range.numpy())
+        max_stab_len, max_stab_R, max_stab_l_p = search_best_stab_parallel_numpy(lower.type(torch.int32).cpu().numpy(), 
+                                                                                 upper.type(torch.int32).cpu().numpy(), 
+                                                                                 self.L.type(torch.int32).cpu().numpy(), 
+                                                                                 seach_range.cpu().numpy())
         
         self.max_stable = torch.from_numpy(max_stab_len)
         self.lp = torch.from_numpy(max_stab_l_p)
@@ -348,16 +353,16 @@ class NSbuilder(torch.nn.Module):
     def NSbuilder_forward(self):
         # parallel execution based on numpy speeds up by 90X
         ## Stage to generate output
-        bs_st = self.bs_st(self.out_cnt_st).type(torch.int32).numpy()
-        bs_ns = self.bs_ns(self.out_cnt_ns).type(torch.int32).numpy()
-        out_cnt_ns, out_cnt_st, ns_gen, st_gen, output = gen_ns_out_parallel_numpy(self.new_ns_len.type(torch.int32).numpy(), 
-                                                                                   self.out_cnt_ns.type(torch.int32).numpy(), 
-                                                                                   self.out_cnt_st.type(torch.int32).numpy(), 
-                                                                                   self.ns_gen.type(torch.int32).numpy(), 
-                                                                                   self.st_gen.type(torch.int32).numpy(), 
+        bs_st = self.bs_st(self.out_cnt_st).type(torch.int32).cpu().numpy()
+        bs_ns = self.bs_ns(self.out_cnt_ns).type(torch.int32).cpu().numpy()
+        out_cnt_ns, out_cnt_st, ns_gen, st_gen, output = gen_ns_out_parallel_numpy(self.new_ns_len.type(torch.int32).cpu().numpy(), 
+                                                                                   self.out_cnt_ns.type(torch.int32).cpu().numpy(), 
+                                                                                   self.out_cnt_st.type(torch.int32).cpu().numpy(), 
+                                                                                   self.ns_gen.type(torch.int32).cpu().numpy(), 
+                                                                                   self.st_gen.type(torch.int32).cpu().numpy(), 
                                                                                    bs_st, 
                                                                                    bs_ns, 
-                                                                                   self.L.type(torch.int32).numpy())
+                                                                                   self.L.type(torch.int32).cpu().numpy())
         
         self.out_cnt_ns = torch.from_numpy(out_cnt_ns)
         self.out_cnt_st = torch.from_numpy(out_cnt_st)

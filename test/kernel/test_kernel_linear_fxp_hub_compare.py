@@ -82,7 +82,7 @@ def test(rounding = "round", abs_err = True):
 
 # %%
 rounding = "round"
-abs_err = True
+abs_err = False
 ufc_err_min_list, ufc_err_max_list, ufc_err_mean_list, ufc_err_std_list, ofc_err_min_list, ofc_err_max_list, ofc_err_mean_list, ofc_err_std_list, ifc_err_min_list, ifc_err_max_list, ifc_err_mean_list, ifc_err_std_list, x_label = test(rounding, abs_err)
 print(ufc_err_mean_list)
 print(ufc_err_std_list)

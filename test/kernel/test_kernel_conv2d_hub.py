@@ -42,7 +42,7 @@ uconv2d_o = uconv2d(input)
 (conv2d_o - uconv2d_o).abs().mean().backward()
 
 # %%
-diff = (uconv2d_o - conv2d_o)
+diff = abs((uconv2d_o - conv2d_o)/conv2d_o)
 print("diff max:", diff.max())
 print("diff min:", diff.min())
 print("diff mean:", diff.mean())

@@ -10,6 +10,7 @@ from matplotlib.pyplot import imshow
 import time
 import math
 import numpy as np
+# device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # %%
 import torch
@@ -42,7 +43,7 @@ class UnaryEdgeDetect(torch.nn.Module):
 
         self.Gx_sub = GainesAdd(mode="bipolar", 
                  scaled=True, 
-                 acc_dim=0, 
+                 # acc_dim=0,
                  rng=self.rng, 
                  rng_dim=self.rng_dim, 
                  rng_width=1, 
@@ -51,7 +52,7 @@ class UnaryEdgeDetect(torch.nn.Module):
 
         self.Gy_sub = GainesAdd(mode="bipolar", 
                  scaled=True, 
-                 acc_dim=0, 
+                 # acc_dim=0,
                  rng=self.rng, 
                  rng_dim=self.rng_dim+4, 
                  rng_width=1, 
@@ -60,7 +61,7 @@ class UnaryEdgeDetect(torch.nn.Module):
 
         self.G_add = GainesAdd(mode="bipolar", 
                 scaled=True, 
-                acc_dim=0, 
+                # acc_dim=0,
                 rng=self.rng, 
                 rng_dim=self.rng_dim+8, 
                 rng_width=1, 
@@ -115,14 +116,15 @@ btype = torch.int8
 rtype=torch.float
 stype=torch.int8
 rng = "Sobol"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-device = "cpu"
+# device = "cpu"
 
 # data generation, divide the whole image into four overlapping 255*255 windows
-inp_Pr_i_j = torch.tensor(data[0:255,0:255]).type(torch.float)
-inp_Pr_i1_j1 = torch.tensor(data[1:256,1:256]).type(torch.float)
-inp_Pr_i1_j = torch.tensor(data[1:256,0:255]).type(torch.float)
-inp_Pr_i_j1 = torch.tensor(data[0:255,1:256]).type(torch.float)
+inp_Pr_i_j = torch.tensor(data[0:255,0:255]).type(torch.float).to(device)
+inp_Pr_i1_j1 = torch.tensor(data[1:256,1:256]).type(torch.float).to(device)
+inp_Pr_i1_j = torch.tensor(data[1:256,0:255]).type(torch.float).to(device)
+inp_Pr_i_j1 = torch.tensor(data[0:255,1:256]).type(torch.float).to(device)
 
 # Calculation in parellel, save data in B_output, and Bdata is for image plotting
 Gx = inp_Pr_i_j - inp_Pr_i1_j1
@@ -130,9 +132,9 @@ Gy = inp_Pr_i_j1 - inp_Pr_i1_j
 Gx_abs = torch.abs(Gx)
 Gy_abs = torch.abs(Gy)
 B_output = (Gx_abs + Gy_abs)
-Bdata = (B_output).numpy()   
+Bdata = (B_output.cpu()).numpy()
 
-input = torch.stack([(inp_Pr_i_j/255), (inp_Pr_i1_j1/255), (inp_Pr_i1_j/255),(inp_Pr_i_j1/255)],0)
+input = torch.stack([(inp_Pr_i_j/255), (inp_Pr_i1_j1/255), (inp_Pr_i1_j/255),(inp_Pr_i_j1/255)],0).to(device)
 
 inputSRC = SourceGen(prob=input, bitwidth=bitwidth, mode=mode, rtype=rtype)().to(device)
 inputRNG = RNG(bitwidth=bitwidth, dim=1, rng=rng, rtype=rtype)().to(device)
@@ -241,15 +243,15 @@ image_b = Image.fromarray(Bdata)
 plt.figure()
 plt.imshow(im,cmap='gray')
 plt.title("Original image")
-
+plt.show()
 plt.figure()
 plt.imshow(image_b)
 plt.title("Binary outcome")
-
+plt.show()
 plt.figure()
 plt.imshow(image_u)
 plt.title("Unary outcome");
-
+plt.show()
 # im.show()
 # image_u.show()
 # image_b.show()

@@ -23,8 +23,9 @@ def linear_test(rng="Sobol",
                 bias=True, 
                 padding_mode='zeros', 
                 bitwidth=8,
-                plot_en=False):
-    modes = ["bipolar", "unipolar"]
+                plot_en=True):
+    # modes = ["bipolar", "unipolar"]
+    modes = ["unipolar"]
     scaled = [True, False]
     result_pe = []
     
@@ -36,6 +37,7 @@ def linear_test(rng="Sobol",
             
             if mode == "unipolar":
                 conv2d.weight.data = torch.rand(out_channels, in_channels, kernel_size, kernel_size).mul(length).round().div(length).to(device)
+                # conv2d.weight.data = ((torch.rand(out_channels, in_channels, kernel_size, kernel_size)-0.5)*2).mul(length).round().div(length).to(device)
                 if bias is True:
                     conv2d.bias.data = torch.rand(out_channels).mul(length).round().div(length).to(device)
             elif mode == "bipolar":
@@ -47,10 +49,12 @@ def linear_test(rng="Sobol",
                                 binary_weight=conv2d.weight, binary_bias=conv2d.bias, bitwidth=bitwidth, mode=mode, scaled=scale).to(device)
 
             input_size = (128, 32)
-            iVec = ((torch.rand(32, in_channels, input_size[0], input_size[1])*length).round()/length).to(device)
-            oVec = conv2d(iVec)
+            # iVec = (((torch.rand(32, in_channels, input_size[0], input_size[1])-0.5)*2*length).round()/length).to(device)##浮点输入值
+            iVec = (((torch.rand(32, in_channels, input_size[0], input_size[1]) ) * length).round() / length).to(device)  ##浮点输入值
 
-            iVecSource = SourceGen(iVec, bitwidth=bitwidth, mode=mode)().to(device)
+            oVec = conv2d(iVec)##浮点输出值
+
+            iVecSource = SourceGen(iVec, bitwidth=bitwidth, mode=mode)().to(device)#输入操作数
             iVecRNG = RNG(bitwidth, 1, rng)().to(device)
             iVecBS = BSGen(iVecSource, iVecRNG).to(device)
 
@@ -68,13 +72,14 @@ def linear_test(rng="Sobol",
                 idx = torch.zeros(iVecSource.size()).type(torch.long).to(device)
                 start_time = time.time()
                 for i in range(length):
-                    iBS = iVecBS(idx + i)
-                    iVecPE.Monitor(iBS)
+                    iBS = iVecBS(idx + i) # 输入操作数 经过RNG生成bit 1 or 0
+                    iVecPE.Monitor(iBS)  # 用于累计 bit 1的个数
 
-                    oVecU = uconv2d(iBS)
+                    oVecU = uconv2d(iBS) ## unary GEMM 输出值
                     oVecPE.Monitor(oVecU)
                     rmse = torch.sqrt(torch.sum(torch.mul(oVecPE()[1], oVecPE()[1]))/torch.prod(torch.tensor(oVecPE()[1].size())))
-                    result_pe_cycle.append(1-rmse.item())
+                    # result_pe_cycle.append(1-rmse.item())
+                    print(f"cycle:{i}")
                 print("--- %s seconds ---" % (time.time() - start_time))
                 print("RNG: "+rng+", data: "+mode+", scaled: "+str(scale))
                 print("input error:  ", "min: ", torch.min(iVecPE()[1]).item(), "max: ", torch.max(iVecPE()[1]).item())
@@ -101,5 +106,5 @@ dilation=4
 groups=1
 bias=True
 padding_mode='zeros'
-bitwidth=10
+bitwidth=8
 linear_test(rng, in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias, bitwidth=bitwidth)

@@ -1,6 +1,6 @@
-# %%
-%load_ext autoreload
-%autoreload 2
+# # %%
+# %load_ext autoreload
+# %autoreload 2
 
 # %%
 import torch
@@ -13,7 +13,8 @@ from torchsummaryX import summary
 import matplotlib.pyplot as plt
 import time
 import os
-
+# import model
+from model import MLP3
 from UnarySim.kernel.utils import *
 
 # %%
@@ -28,10 +29,10 @@ print(device)
 # MNIST data loader
 transform=transforms.Compose([transforms.Resize((32, 32)), transforms.ToTensor()])
 
-trainset = torchvision.datasets.MNIST(root=cwd+'/data/mnist', train=True, download=True, transform=transform)
+trainset = torchvision.datasets.MNIST(root='D:\postgraduate\Accelerator\\Unary Computing\\data\mnist', train=True, download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=4)
 
-testset = torchvision.datasets.MNIST(root=cwd+'/data/mnist', train=False, download=True, transform=transform)
+testset = torchvision.datasets.MNIST(root='D:\postgraduate\Accelerator\\Unary Computing\\data\mnist', train=False, download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(testset, batch_size=128, num_workers=4)
 
 # %%
@@ -47,7 +48,7 @@ model = MLP3(layer_width)
 # model = MLP3_clamp()
 # model = MLP3_clamp_train()
 model.to(device)
-summary(model, torch.zeros((1, 1, 32, 32)).to(device))
+# summary(model, torch.zeros((1, 1, 32, 32)).to(device))
 
 # %%
 bitwidth = 8

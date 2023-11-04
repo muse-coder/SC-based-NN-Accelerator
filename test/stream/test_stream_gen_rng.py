@@ -10,21 +10,21 @@ log = logging.getLogger(__name__)
 # %%
 rng = RNG(1, 2, "Sobol")
 print(rng.cuda()())
-print(rng.cpu()())
+# print(rng.cpu()())
 
 # %%
 rng = RNG(4, 2, "Race")
 print(rng.cuda()())
-print(rng.cpu()())
+# print(rng.cpu()())
 
 # %%
 rng = RNG(4, 2, "LFSR")
 print(rng.cuda()())
-print(rng.cpu()())
+# print(rng.cpu()())
 
 # %%
 rng = RNG(4, 2, "SYS")
 print(rng.cuda()())
-print(rng.cpu()())
+# print(rng.cpu()())
 
 # %%

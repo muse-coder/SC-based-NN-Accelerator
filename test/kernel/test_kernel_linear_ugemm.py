@@ -12,7 +12,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # %%
 def linear_test(rng="Sobol", in_feature=128, out_feature=10000, bitwidth=8, bias=True, plot_en=False):
-    modes = ["bipolar", "unipolar"]
+    # modes = ["bipolar", "unipolar"]
+    modes = ["unipolar"]
+
     scaled = [True, False]
     result_pe = []
     

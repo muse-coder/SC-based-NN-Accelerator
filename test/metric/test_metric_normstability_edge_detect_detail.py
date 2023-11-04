@@ -39,7 +39,7 @@ class GainesEdgeDetect(torch.nn.Module):
 
         self.Gx_sub = GainesAdd(mode="bipolar", 
                  scaled=scaled, 
-                 acc_dim=0, 
+                 # acc_dim=0,
                  rng=self.rng, 
                  rng_dim=self.rng_dim, 
                  rng_width=1, 
@@ -48,7 +48,7 @@ class GainesEdgeDetect(torch.nn.Module):
 
         self.Gy_sub = GainesAdd(mode="bipolar", 
                  scaled=scaled, 
-                 acc_dim=0, 
+                 # acc_dim=0,
                  rng=self.rng, 
                  rng_dim=self.rng_dim+4, 
                  rng_width=1, 
@@ -57,7 +57,7 @@ class GainesEdgeDetect(torch.nn.Module):
 
         self.G_add = GainesAdd(mode="bipolar", 
                 scaled=scaled, 
-                acc_dim=0, 
+                # acc_dim=0,
                 rng=self.rng, 
                 rng_dim=self.rng_dim+8, 
                 rng_width=1, 
@@ -118,17 +118,17 @@ class UnaryEdgeDetect(torch.nn.Module):
 
         self.Gx_sub = FSUAdd(mode="bipolar", 
                  scaled=scaled, 
-                 acc_dim=0, 
+                 # acc_dim=0,
                  stype=self.stype)
 
         self.Gy_sub = FSUAdd(mode="bipolar", 
                  scaled=scaled, 
-                 acc_dim=0, 
+                 # acc_dim=0,
                  stype=self.stype)
 
         self.G_add = FSUAdd(mode="bipolar", 
                 scaled=scaled, 
-                acc_dim=0, 
+                # acc_dim=0,
                 stype=self.stype)
 
         self.GxAbs = FSUAbs(depth=depth, shiftreg=False, interleave=interleave, stype=self.stype, btype=self.btype)
@@ -182,7 +182,7 @@ def detect(
     rtype = torch.float
     stype = torch.float
 
-    if ns is True:
+    if ns is False:
         device = "cpu"
     else:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -309,10 +309,12 @@ def detect(
 
     plt.figure(); plt.imshow(im, cmap='gray');      plt.title("Original image")
     Bdata = (B_output).cpu().numpy();               image_b = Image.fromarray(Bdata)
+    plt.show()
     plt.figure(); plt.imshow(image_b, cmap='gray'); plt.title("Binary outcome")
+    plt.show()
     Udata = (Udata*output_scale).cpu().numpy();     image_u = Image.fromarray(Udata)
     plt.figure(); plt.imshow(image_u, cmap='gray'); plt.title("Unary outcome")
-    
+    plt.show()
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
     # now use the calculated ns to early stop
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
@@ -346,16 +348,16 @@ def detect(
 
     Udata = (Udata*output_scale).cpu().numpy();     image_u = Image.fromarray(Udata)
     plt.figure(); plt.imshow(image_u, cmap='gray'); plt.title("Early Teminated Unary outcome")
-    
+    plt.show()
 
 # %%
-detect(Gaines = True, ns = True, bitwidth = 10, mode = "bipolar", rng = "Sobol", depth = 4, scaled = True, interleave = True, threshold = 0.05)
+# detect(Gaines = True, ns = True, bitwidth = 10, mode = "bipolar", rng = "Sobol", depth = 4, scaled = True, interleave = True, threshold = 0.05)
 
 # %%
-detect(Gaines = True, ns = True, bitwidth = 10, mode = "bipolar", rng = "Sobol", depth = 4, scaled = True, interleave = True, threshold = 0.1)
+# detect(Gaines = True, ns = True, bitwidth = 10, mode = "bipolar", rng = "Sobol", depth = 4, scaled = True, interleave = True, threshold = 0.1)
 
 # %%
-detect(Gaines = False, ns = True, bitwidth = 10, mode = "bipolar", rng = "Sobol", depth = 4, scaled = False, interleave = False, threshold = 0.05)
+# detect(Gaines = False, ns = True, bitwidth = 10, mode = "bipolar", rng = "Sobol", depth = 4, scaled = False, interleave = False, threshold = 0.05)
 
 # %%
 detect(Gaines = False, ns = True, bitwidth = 10, mode = "bipolar", rng = "Sobol", depth = 4, scaled = False, interleave = False, threshold = 0.1)

@@ -12,13 +12,13 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 bitwidth = 8
 dim = 1
 rng = "Sobol"
-mode = "bipolar"
+mode = "unipolar"
 col = 100000
 
 # %%
 result_pe_cycle = []
 if mode == "unipolar":
-    iVec = torch.rand(1, col).mul(2**bitwidth).round().div(2**bitwidth).to(device)
+    iVec = ((torch.rand(1, col)-0.5)*2).mul(2**bitwidth).round().div(2**bitwidth).to(device)
 elif mode == "bipolar":
     iVec = torch.rand(1, col).mul(2).sub(1).mul(2**bitwidth).round().div(2**bitwidth).to(device)
 
@@ -32,9 +32,12 @@ with torch.no_grad():
     idx = torch.zeros(iVecSource.size()).type(torch.long).to(device)
     start_time = time.time()
     for i in range(2**bitwidth):
+        # if (i == 2**bitwidth-3) :
+        #     print("ending bitstream generation")
+        #     print(i)
         iBS = iVecBS(idx + i)
         iVecPE.Monitor(iBS)
-        result_pe_cycle.append(1-torch.sqrt(torch.sum(torch.mul(iVecPE()[1][0], iVecPE()[1][0]))/col).item())
+        result_pe_cycle.append(1-torch.sqrt(torch.sum(torch.mul(iVecPE()[1][0], iVecPE()[1][0]))/col).item())#iVecPE()[1][0] 是什么意思？
     print("--- %s seconds ---" % (time.time() - start_time))
     print("input error: ", "min:", torch.min(iVecPE()[1]).item(), "max:", torch.max(iVecPE()[1]).item())
     result_pe = iVecPE()[1][0].cpu().numpy()

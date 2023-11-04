@@ -59,6 +59,7 @@ class FSULinear(torch.nn.Module):
     @autocast()
     def forward(self, input, scale=None, entry=None):
         pc = self.PC(input)
+        a = pc.unsqueeze(0)
         output = self.ACC(pc.unsqueeze(0), scale, entry)
         return output.type(self.stype)
 
@@ -127,12 +128,18 @@ class FSULinearPC(torch.nn.Linear):
         torch.add(self.weight_rng_idx, input.unsqueeze(1).type(torch.long), out=self.weight_rng_idx)
         
         kernel_out = torch.empty(0, device=input.device)
+        # torch.matmul(input.unsqueeze(1).type(torch.float), weight_bs.transpose(1, 2), out=kernel_out)
+        a = input.unsqueeze(1).type(torch.float)
+        b = weight_bs.transpose(1, 2)
         torch.matmul(input.unsqueeze(1).type(torch.float), weight_bs.transpose(1, 2), out=kernel_out)
+
         kernel_out.squeeze_(1)
         
         if self.has_bias is True:
             bias_bs = self.bias_bsg(self.bias_rng_idx).type(torch.float)
             self.bias_rng_idx.add_(1)
+            c = bias_bs.unsqueeze(0).expand_as(kernel_out)
+
             kernel_out += bias_bs.unsqueeze(0).expand_as(kernel_out)
 
         if self.mode == "unipolar":
@@ -1033,7 +1040,7 @@ class HUBLinearFunction(torch.autograd.Function):
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
         # scale input to range 0~2^bitwidth-1
         buf_input = torch.empty(0, dtype=torch.long, device=input.device)
-        torch.abs((input >> rshift_input).unsqueeze_(1).type(torch.long), out=buf_input)
+        torch.abs((input * (2**abs(rshift_input))).unsqueeze_(1).type(torch.long), out=buf_input)
         torch.clamp(buf_input, 0, cycle-1, out=buf_input)
         
         # actual input: its sign
@@ -1046,7 +1053,8 @@ class HUBLinearFunction(torch.autograd.Function):
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
         # scale weight with batch to range 0~2^bitwidth-1
         buf_wght_no_batch = torch.empty(0, dtype=torch.long, device=weight.device)
-        torch.abs((weight >> rshift_wght).unsqueeze_(0).type(torch.long), out=buf_wght_no_batch)
+
+        torch.abs((weight * (2 ** rshift_wght)).unsqueeze_(0).type(torch.long), out=buf_wght_no_batch)
         torch.clamp(buf_wght_no_batch, 0, cycle-1, out=buf_wght_no_batch)
         buf_wght = torch.empty(0, dtype=torch.long, device=weight.device)
         torch.cat(batch*[buf_wght_no_batch], 0, out=buf_wght)
@@ -1062,7 +1070,7 @@ class HUBLinearFunction(torch.autograd.Function):
         output = torch.empty(0, device=weight.device)
         torch.matmul(act_input, act_wght.transpose(1, 2), out=output)
         
-        output = (output >> rshift_output).squeeze_(1)
+        output = (output / (2** rshift_output)).squeeze_(1)
         
         if bias is not None:
             output += bias.unsqueeze(0).expand_as(output)
@@ -1202,7 +1210,12 @@ class FxpLinearFunction(torch.autograd.Function):
         bot_input = 0 - max_abs_input
         top_input = max_abs_input - 1
         input_round = torch.empty(0, device=input.device)
-        torch.round(input >> rshift_input, out=input_round)
+        if(rshift_input<0):
+            rshift_input = -rshift_input
+            # torch.round(input << rshift_input, out=input_round)
+            torch.round(input *(2 ** rshift_input), out=input_round)
+        else:
+            print("rshift >=0 ")
         torch.clamp(input_round.unsqueeze_(1), bot_input, top_input, out=input_round)
         
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
@@ -1212,13 +1225,16 @@ class FxpLinearFunction(torch.autograd.Function):
         bot_wght = 0 - max_abs_wght
         top_wght = max_abs_wght - 1
         wght_round = torch.empty(0, device=input.device)
-        torch.round(weight >> rshift_wght, out=wght_round)
+        if (rshift_wght<0 ) :
+            torch.round(weight *(2 ** -rshift_wght), out=wght_round)
         torch.clamp(wght_round.unsqueeze_(0), bot_wght, top_wght, out=wght_round)
         
         output = torch.empty(0, device=weight.device)
         torch.matmul(input_round, wght_round.transpose(1, 2), out=output)
-        output = (output >> rshift_output).squeeze_(1)
-        
+        new_rshift_output =int(abs(rshift_output))
+        # output = (output >> int(abs(rshift_output))).squeeze_(1)
+        output = (output / (2**new_rshift_output) ).squeeze_(1)
+
         if bias is not None:
             output += bias.unsqueeze(0).expand_as(output)
         return output

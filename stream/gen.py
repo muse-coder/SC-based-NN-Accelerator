@@ -172,9 +172,14 @@ class BSGen(torch.nn.Module):
         self.stype = stype
     
     def forward(self, rng_idx):
-        return torch.gt(self.source, self.rng_seq[rng_idx.type(torch.long)]).type(self.stype)
-    
-    
+        a = self.source
+        b = self.rng_seq[rng_idx.type(torch.long)]
+        c = torch.sign(a)
+        d = torch.gt(torch.abs(self.source), self.rng_seq[rng_idx.type(torch.long)]).type(self.stype)
+        e = d.mul(c)
+        # return torch.gt(self.source, self.rng_seq[rng_idx.type(torch.long)]).type(self.stype)
+        return e
+
 class BSGenMulti(torch.nn.Module):
     """
     Compare source data with rng_seq indexed with rng_idx to generate bit streams from source
