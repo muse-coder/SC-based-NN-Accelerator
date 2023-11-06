@@ -20,9 +20,21 @@ class GenBitstream(torch.nn.Module):
     def forward(self, inputData,dataWidth = 8):
         len = self.RngSeq.size(0)
         quantizedata = inputData / (2 ** (dataWidth - math.log2(len)))
-        if (quantizedata==0):
-            return torch.zeros((len,)).to(self.device)
-        sourceDataSeq = torch.full((len,) , quantizedata ).to(self.device)
+        # if(quantizedata-math.floor(quantizedata) >=0.5 ):
+        #     New_quantizedata = math.ceil(quantizedata)
+        # else:
+        #     New_quantizedata = math.floor(quantizedata)
+        #
+        # if (New_quantizedata==0):
+        #     return torch.zeros((len,)).to(self.device)
+
+        New_quantizedata = round(quantizedata)
+
+        sourceDataSeq = torch.round(torch.full((len,) , New_quantizedata )).to(torch.int).to(self.device)
+
+
+
+
         bitstream = (sourceDataSeq > self.RngSeq).int()
         return bitstream
 
@@ -46,9 +58,15 @@ def EnlargeModule(originalData, dataWidth):
 
 def BitstreamMUL(bitstream_1,bitstream_2,leftshit_1,leftshit_2,rngSeqLengthLog,dataWidth):
     resultBitstream = (bitstream_1.int() & bitstream_2.int())
-    resultSum = resultBitstream.sum()
-    resultBinary = resultSum * (2**(2*dataWidth-rngSeqLengthLog-leftshit_2-leftshit_1))
-    return resultBinary
+    # resultSum = resultBitstream.sum()
+    # newResultSum = torch.tensor(0).to(bitstream_1.device)
+    bitstream_2_reshaped = torch.reshape(bitstream_2, (len(bitstream_2), 1))
+
+
+    # torch.matmul(bitstream_1,bitstream_2_reshaped,out=newResultSum).to(bitstream_1.device)
+    newResultSum = (bitstream_1.float()).matmul(bitstream_2_reshaped.float())
+    resultBinary = (newResultSum * (2**(2*dataWidth-rngSeqLengthLog-leftshit_2-leftshit_1))).item()
+    return torch.tensor(resultBinary)
 
 def GenBitstreamGroup (originData_1, rngSeq , dataWidth , device):
     Zero = 0
@@ -68,6 +86,9 @@ def SC_MUL(originData_1 , originData_2 , rngSeq , dataWidth , device):
     testSample_2 = GenBitstream(rngSeq=ascendingSeq).to(device)
     bitstream_1 = testSample_1(enlargedData_1 ,dataWidth =  dataWidth).to(device)
     bitstream_2 = testSample_2(enlargedData_2 ,dataWidth =  dataWidth).to(device)
+    # print(bitstream_1.tolist())
+    # print(bitstream_2.tolist())
+
     resultBinary = BitstreamMUL (bitstream_1,bitstream_2,leftShift_1,leftShift_2,rngSeqLengthLog = math.log2(bitstreamLength) ,dataWidth=dataWidth).to(device)
     # print(1-resultBinary/(originData_1*originData_2))
     return resultBinary
@@ -76,5 +97,10 @@ if __name__ == "__main__":
                9, 25, 17, 1]
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     sobolTensor = torch.tensor(sobol_1).to(device)
-    result = SC_MUL(originData_1=33, originData_2=44, rngSeq=sobolTensor, dataWidth=8, device=device)
+    t = round(18.52)
+    result = SC_MUL(originData_1=torch.tensor(37), originData_2=torch.tensor(47), rngSeq=sobolTensor, dataWidth=8, device=device)
+
+
+    # testSample_1 = GenBitstream(rngSeq=sobolTensor).to(device)
+    # bitstream_1 = testSample_1
     print(result)

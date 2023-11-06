@@ -1212,6 +1212,7 @@ class FxpLinearFunction(torch.autograd.Function):
         bot_input = 0 - max_abs_input
         top_input = max_abs_input - 1
         input_round = torch.empty(0, device=input.device)
+        device = input.device
         if(rshift_input<0):
             rshift_input = -rshift_input
             # torch.round(input << rshift_input, out=input_round)
@@ -1235,16 +1236,20 @@ class FxpLinearFunction(torch.autograd.Function):
         torch.matmul(input_round, wght_round.transpose(1, 2), out=output)
 
         sobol_1 = [0, 16, 24, 8, 12, 28, 20, 4, 6, 22, 30, 14, 10, 26, 18, 2, 3, 19, 27, 11, 15, 31, 23, 7, 5, 21, 29,
-                   13,
-                   9, 25, 17, 1]
+                   13, 9, 25, 17, 1]
         sobolTensor = torch.tensor(sobol_1).to(input.device)
+        ascendingSeq = torch.tensor([x for x in range(len(sobol_1))]).to(device)
+
         GEMMInputData= torch.squeeze(input_round,dim=1)
         GEMMInputWeight = torch.squeeze(wght_round,dim=0).transpose(0, 1)
         # GEMMInputWeight = wght_round.squeeze_(1,)
+        SobolBitstreamSource = BitstreamSource(dataWidth=8, rngSeq=sobolTensor, device=device)
+        AscendingBitstreamSource = BitstreamSource(dataWidth=8, rngSeq=ascendingSeq, device=device)
 
-        GEMMKernel = SCbasedGEMM(tensor_1=GEMMInputData, tensor_2=GEMMInputWeight, dataWidth=8, rngSeq=sobolTensor, device=input.device)
-        GEMMResult = GEMMKernel()
-
+        NewSCbasedGEMMInstance = NewSCbasedGEMM(tensor_1=GEMMInputData, tensor_2=GEMMInputWeight, dataWidth=8, rngSeq=sobolTensor,
+                                                device=device)
+        approximateResult = NewSCbasedGEMMInstance.calculate(BitstreamSourceInstanceA=SobolBitstreamSource,
+                                                             BitstreamSourceInstanceB=AscendingBitstreamSource)
 
         new_rshift_output =int(abs(rshift_output))
         # output = (output >> int(abs(rshift_output))).squeeze_(1)

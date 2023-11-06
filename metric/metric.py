@@ -1,7 +1,7 @@
 import torch
 import math
 import numpy as np
-from UnarySim.stream.gen import RNG, SourceGen, BSGen
+from stream.gen import RNG, SourceGen, BSGen
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class Correlation(torch.nn.Module):
