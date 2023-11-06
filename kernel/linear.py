@@ -3,7 +3,9 @@ import math
 from  stream.gen import RNG, RNGMulti, SourceGen, BSGen, BSGenMulti
 from torch.cuda.amp import autocast
 from  kernel.add import FSUAdd
-
+# from SC_GEMM import *
+from kernel.SC_GEMM import *
+from kernel.GenBitstream import *
 class FSULinear(torch.nn.Module):
     """
     This module is the fully connected layer,
@@ -1231,6 +1233,18 @@ class FxpLinearFunction(torch.autograd.Function):
         
         output = torch.empty(0, device=weight.device)
         torch.matmul(input_round, wght_round.transpose(1, 2), out=output)
+
+        sobol_1 = [0, 16, 24, 8, 12, 28, 20, 4, 6, 22, 30, 14, 10, 26, 18, 2, 3, 19, 27, 11, 15, 31, 23, 7, 5, 21, 29,
+                   13,
+                   9, 25, 17, 1]
+        sobolTensor = torch.tensor(sobol_1).to(input.device)
+        GEMMInputData= torch.squeeze(input_round,dim=1)
+        GEMMInputWeight = torch.squeeze(wght_round,dim=0).transpose(0, 1)
+        # GEMMInputWeight = wght_round.squeeze_(1,)
+
+        GEMMKernel = SCbasedGEMM(tensor_1=GEMMInputData, tensor_2=GEMMInputWeight, dataWidth=8, rngSeq=sobolTensor, device=input.device)
+        GEMMResult = GEMMKernel()
+
 
         new_rshift_output =int(abs(rshift_output))
         # output = (output >> int(abs(rshift_output))).squeeze_(1)

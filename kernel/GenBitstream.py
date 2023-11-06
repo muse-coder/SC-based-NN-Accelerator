@@ -28,8 +28,9 @@ class GenBitstream(torch.nn.Module):
 
 def FindHighestOne(num, dataWidth):
     mask = 1 << (dataWidth - 1)  # 创建一个掩码，将其移到最高位
+    data = int(num.item())
     for position in range(dataWidth - 1, -1, -1):
-        if num & mask:
+        if data & mask:
             return position
         mask >>= 1  # 右移掩码，检查下一位
     return None
@@ -37,9 +38,9 @@ def FindHighestOne(num, dataWidth):
 def EnlargeModule(originalData, dataWidth):
     if originalData == 0:
         return 0,0
-    binary_str = format(originalData, f"0{dataWidth}b")
+    # binary_str = format(originalData, f"0{dataWidth}b")
     leftShiftTime = dataWidth -  FindHighestOne(originalData,dataWidth) - 1
-    enlargedNumber = originalData << leftShiftTime
+    enlargedNumber = int(originalData.item()) << leftShiftTime
 
     return enlargedNumber , leftShiftTime
 

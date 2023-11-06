@@ -4,7 +4,8 @@ from  kernel.conv import *
 import matplotlib.pyplot as plt
 import time
 import math
-
+from kernel.linear import   *
+from kernel.SC_GEMM import   *
 # %%
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
