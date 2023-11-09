@@ -143,34 +143,36 @@ def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     dataShape_2 = tensorData_2.size()
     signData_1 =  torch.sign(tensorData_1)
     signData_2 =  torch.sign(tensorData_2)
-    dataLeftShiftTime_1_expand = (dataLeftShiftTime_1.unsqueeze(1)).repeat(1,dataShape_2[1],1)
-    dataLeftShiftTime_2_expand = (dataLeftShiftTime_2.unsqueeze(0)).repeat(dataShape_1[0],1,1)
-    dataLeftShiftTime_2_expand_reshape = torch.transpose(input=dataLeftShiftTime_2_expand,dim0=1,dim1=2)
-    dataScaledTime =  2*dataWidth -( dataLeftShiftTime_1_expand + dataLeftShiftTime_2_expand_reshape) - math.log2(bitstreamLength)
+    '''
+    Begin:将数据维度转换成合适shape
+    '''
+    dataLeftShiftTime_1 = (dataLeftShiftTime_1.unsqueeze(1)).repeat(1,dataShape_2[1],1)
+    dataLeftShiftTime_2 = (dataLeftShiftTime_2.unsqueeze(0)).repeat(dataShape_1[0],1,1)
+    dataLeftShiftTime_2 = torch.transpose(input=dataLeftShiftTime_2,dim0=1,dim1=2)
+    dataScaledTime =  2*dataWidth -( dataLeftShiftTime_1 + dataLeftShiftTime_2) - math.log2(bitstreamLength)
 
     tensorBit_1 = tensorGenBitstreamMulti(rngSeq = rngSeq , tensorInputData= enlargedData_1 , dataWidth= dataWidth).to(device)
     tensorBit_2 = tensorGenBitstreamMulti(rngSeq = ascendingSeq , tensorInputData= enlargedData_2 , dataWidth= dataWidth).to(device)
-    tensorBitSign_1 = tensorBit_1 * (signData_1.unsqueeze(2).repeat(1,1,bitstreamLength))
-    tensorBitSign_2 = tensorBit_2 * (signData_2.unsqueeze(2).repeat(1,1,bitstreamLength))
+    torch.mul(input=tensorBit_1, other=(signData_1.unsqueeze(2).repeat(1,1,bitstreamLength)),out=tensorBit_1)
+    torch.mul(input=tensorBit_2, other=(signData_2.unsqueeze(2).repeat(1, 1, bitstreamLength)), out=tensorBit_2)
 
 
-    tensorBit_1_expand = (tensorBitSign_1.unsqueeze(1)).repeat(1,dataShape_2[1],1,1)
-    tensorBit_2_expand = (tensorBitSign_2.unsqueeze(0)).repeat(dataShape_1[0], 1, 1,1)
-    tensorBit_2_expand_reshape = torch.transpose(input=tensorBit_2_expand,dim0=1,dim1=2)
-    tensorBit_2_expand_reshape_2 = torch.transpose(input=tensorBit_2_expand_reshape ,dim0=2,dim1=3)
+    tensorBit_1 = (tensorBit_1.unsqueeze(1)).repeat(1,dataShape_2[1],1,1)
+    tensorBit_2 = (tensorBit_2.unsqueeze(0)).repeat(dataShape_1[0], 1, 1,1)
+    tensorBit_2 = torch.transpose(input=tensorBit_2,dim0=1,dim1=2)
+    tensorBit_2 = torch.transpose(input=tensorBit_2 ,dim0=2,dim1=3)
+    '''
+        End:将数据维度转换成合适shape
+    '''
 
-
-
-
-    SCResult = (tensorBit_1_expand.to(torch.float)).matmul( tensorBit_2_expand_reshape_2.to(torch.float) )
+    SCResult = (tensorBit_1.to(torch.float)).matmul( tensorBit_2.to(torch.float) )
 
     SCResultDiagonal =  torch.diagonal(input= SCResult,dim1=2,dim2=3)
     SCResultDiagonalScaled = SCResultDiagonal.mul(2**dataScaledTime)
     SCMatrixResult = torch.sum(input=SCResultDiagonalScaled,dim=2)
-    exactMatrixResult = tensorData_1.to(torch.float).matmul(tensorData_2.to(torch.float))
-    # matResult = torch.sum(input=(torch.sum(input=SCResult,dim=1)),dim=2)
     print(SCMatrixResult)
     return SCMatrixResult
+
     # exactResult =
 def TensorSC_MUL(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     bitstreamLength = len(rngSeq)
@@ -215,28 +217,31 @@ def TensorSC_MUL(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
 
     tensorResult
     return enlargedData_2
+
+
+
+
 if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     sobol_1 = [0, 16, 24, 8, 12, 28, 20, 4, 6, 22, 30, 14, 10, 26, 18, 2, 3, 19, 27, 11, 15, 31, 23, 7, 5, 21, 29, 13,
                9, 25, 17, 1]
     sobolTensor = torch.tensor(sobol_1).to(device)
 
+    tensor1 = torch.randint(-255,255, size=(10816, 9)).to(device)
+    tensor2 = torch.randint(-255,255, size=(9, 32)).to(device)
 
+    approximateResult = matrixMulSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
+    exactResutl = tensor1.to(torch.float).matmul((tensor2).to(torch.float))
+    relativeError = abs(1 - (approximateResult / exactResutl))
+    absoluteError = abs(exactResutl - approximateResult )
+    maxRED,index1 = torch.max(input=relativeError) , torch.argmax(input=relativeError)
+    minRED,index2 = torch.min(input=relativeError) , torch.argmin(input=relativeError)
+    maxAED,index1 = torch.max(input=absoluteError) , torch.argmax(input=absoluteError)
+    minAED,index2 = torch.min(input=absoluteError) , torch.argmin(input=absoluteError)
+    non_zero_RED_index = torch.argwhere(input= relativeError)
+    non_zero_RED =relativeError[non_zero_RED_index]
+    maxRED, index1 = torch.max(input=non_zero_RED), torch.argmax(input=non_zero_RED)
+    minRED, index2 = torch.min(input=non_zero_RED), torch.argmin(input=non_zero_RED)
 
-
-    tensor1 = torch.randint(-255,255, size=(500, 70)).to(device)
-    tensor2 = torch.randint(-255,255, size=(70, 100)).to(device)
-
-
-    # tensor1Bit =  tensorGenBitstreamMulti(rngSeq=sobolTensor, tensorInputData=tensor1, dataWidth=8)
-    result = matrixMulSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
-
-    result =  TensorSC_MUL(tensorData_1= tensor1, tensorData_2= tensor2,rngSeq= sobolTensor, dataWidth = 8, device = device)
-    # 调用GetSignificantBits函数来获取有效位数
-    # result = TensorEnlargeModule(tensor,8)
-    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # sobolTensor = torch.tensor(sobol_1).to(device)
-    # t = round(18.52)
-    # result = SC_MUL(originData_1=torch.tensor(37), originData_2=torch.tensor(47), rngSeq=sobolTensor, dataWidth=8, device=device)
-    #
-
+    print(maxRED)
+    print(minRED)
