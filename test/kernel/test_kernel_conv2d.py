@@ -50,7 +50,7 @@ def linear_test(rng="Sobol",
 
             input_size = (128, 32)
             # iVec = (((torch.rand(32, in_channels, input_size[0], input_size[1])-0.5)*2*length).round()/length).to(device)##浮点输入值
-            iVec = (((torch.rand(32, in_channels, input_size[0], input_size[1]) ) * length).round() / length).to(device)  ##浮点输入值
+            iVec = (((torch.rand(64, in_channels, input_size[0], input_size[1]) ) * length).round() / length).to(device)  ##浮点输入值
 
             oVec = conv2d(iVec)##浮点输出值
 
@@ -97,12 +97,12 @@ def linear_test(rng="Sobol",
 
 # %%
 rng = "Sobol"
-in_channels=16
-out_channels=128
+in_channels=32
+out_channels=16
 kernel_size=3
-stride=3
-padding=3
-dilation=4
+stride=2
+padding=0
+dilation=1
 groups=1
 bias=True
 padding_mode='zeros'

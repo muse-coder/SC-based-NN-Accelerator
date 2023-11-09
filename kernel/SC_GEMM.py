@@ -54,7 +54,6 @@ class NewSCbasedGEMM:
     def calculate(self,BitstreamSourceInstanceA,BitstreamSourceInstanceB):
         approximateResult = torch.zeros(self.rows1, self.cols2).to(self.device)
         # exactResult = torch.zeros(self.rows1, self.cols2).to(self.device)
-        # cnt =0
         print(f"rows1:{self.rows1}, cols2:{self.cols2}, cols1:{self.cols1},  ")
         for i in range(self.rows1):
             print(f"rows now :{i}")
@@ -76,17 +75,12 @@ class NewSCbasedGEMM:
 
                     bitstream_2 , leftShift_2 , zero_2= BitstreamSourceInstanceB.GetBitstream(abs(originalData_2))
 
-                    # originalResult = originalData_1 * originalData_2
-
-                    # if(sign_2 * sign_1 <0):
-                    #     cnt+=cnt
                     if (zero_1==1 or zero_2==1):
                         signSCResult = torch.tensor(0)
                     else:
                         absSCResult = BitstreamMUL(bitstream_1, bitstream_2,leftShift_1,leftShift_2,rngSeqLengthLog=math.log2(self.bitstreamlength), dataWidth=self.dataWidth).to(self.device)
                         signSCResult = absSCResult * sign_2 * sign_1
-                        # if ((signSCResult * originalResult <0)):
-                        #     print("error")
+
 
                     approximateResult[i, j] += signSCResult
 
@@ -95,6 +89,40 @@ class NewSCbasedGEMM:
 
 
 
+    def ParallelCalculate(self,BitstreamSourceInstanceA,BitstreamSourceInstanceB):
+        approximateResult = torch.zeros(self.rows1, self.cols2).to(self.device)
+
+        newTensor_1 = self.tensor_1.unsequeeze(1)
+
+        print(f"rows1:{self.rows1}, cols2:{self.cols2}, cols1:{self.cols1},  ")
+        for i in range(self.rows1):
+                for j in range(self.cols1):
+                    originalData_1 = (self.tensor_1 [i,j]).to(torch.int)
+                    if (originalData_1<0):
+                        sign_1 = -1
+                    else :
+                        sign_1 = 1
+
+                    bitstream_1 , leftShift_1 , zero_1= BitstreamSourceInstanceA.GetBitstream(abs(originalData_1))
+
+                    originalData_2 = (self.tensor_2 [k,j]).to(torch.int)
+                    if (originalData_2<0):
+                        sign_2 = -1
+                    else :
+                        sign_2 = 1
+
+                    bitstream_2 , leftShift_2 , zero_2= BitstreamSourceInstanceB.GetBitstream(abs(originalData_2))
+
+                    if (zero_1==1 or zero_2==1):
+                        signSCResult = torch.tensor(0)
+                    else:
+                        absSCResult = BitstreamMUL(bitstream_1, bitstream_2,leftShift_1,leftShift_2,rngSeqLengthLog=math.log2(self.bitstreamlength), dataWidth=self.dataWidth).to(self.device)
+                        signSCResult = absSCResult * sign_2 * sign_1
+
+
+                    approximateResult[i, j] += signSCResult
+
+        return approximateResult
 
 
 
