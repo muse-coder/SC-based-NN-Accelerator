@@ -61,6 +61,18 @@ def tensorGenBitstreamMulti(rngSeq,tensorInputData,dataWidth = 8  ):
     return singleBitstreamMul
 
 
+def tensorGenBitstreamSeries(rngSeq,tensorInputData,index,dataWidth = 8  ):
+    len = rngSeq.size(0)
+    quantizeData = (torch.round(tensorInputData / (2 ** (dataWidth - math.log2(len))))).to(rngSeq.device)
+    # quantizeDataMul = quantizeData.unsqueeze(2)
+    # rngSeqMul = rngSeq.unsqueeze(0).unsqueeze(1)
+    singleBitstreamMul = (quantizeData> rngSeq[index]).int()
+
+
+    return singleBitstreamMul
+
+
+
 
 
 def FindHighestOne(num, dataWidth):
@@ -178,6 +190,48 @@ def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
 
     # exactResult =
 
+
+def matrixMulSeriesSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
+    bitstreamLength = len(rngSeq)
+    ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
+    enlargedData_1 , dataLeftShiftTime_1 =  TensorEnlargeModule(tensorData=abs(tensorData_1), dataWidth=dataWidth)
+    enlargedData_2 , dataLeftShiftTime_2 =  TensorEnlargeModule(tensorData=abs(tensorData_2), dataWidth=dataWidth)
+    dataShape_1 = tensorData_1.size()
+    dataShape_2 = tensorData_2.size()
+    signData_1 =  torch.sign(tensorData_1)
+    signData_2 =  torch.sign(tensorData_2)
+    '''
+    Begin:将数据维度转换成合适shape
+    '''
+    dataLeftShiftTime_1 = (dataLeftShiftTime_1.unsqueeze(1)).repeat(1,dataShape_2[1],1)
+    dataLeftShiftTime_2 = (dataLeftShiftTime_2.unsqueeze(0)).repeat(dataShape_1[0],1,1)
+    dataLeftShiftTime_2 = torch.transpose(input=dataLeftShiftTime_2,dim0=1,dim1=2)
+    dataScaledTime =  2*dataWidth -( dataLeftShiftTime_1 + dataLeftShiftTime_2 ) - math.log2(bitstreamLength)
+
+    # SCResult = torch.empty((dataShape_1[0],dataShape_2[1]),dtype=torch.float)
+    SCBitACC = torch.zeros((dataShape_1[0],dataShape_2[1],dataShape_2[0]),dtype=torch.float).to(device)
+    for i in range (bitstreamLength):
+        print(i)
+        tensorBit_1 = tensorGenBitstreamSeries(rngSeq = rngSeq , tensorInputData= enlargedData_1 , index= i , dataWidth= dataWidth).to(device)
+        tensorBit_2 = tensorGenBitstreamSeries(rngSeq = ascendingSeq , tensorInputData= enlargedData_2 ,index= i , dataWidth= dataWidth).to(device)
+        tensorBit_1 = tensorBit_1.to(torch.float)
+        tensorBit_2 = tensorBit_2.to(torch.float)
+        torch.mul(input=tensorBit_1, other=(signData_1),out=tensorBit_1)
+        torch.mul(input=tensorBit_2, other=(signData_2), out=tensorBit_2)
+        tensorBit_1 = (tensorBit_1.unsqueeze(1)).repeat(1,dataShape_2[1],1)
+        tensorBit_2 = (tensorBit_2.unsqueeze(0)).repeat(dataShape_1[0],1,1)
+        tensorBit_2 = torch.transpose(input=tensorBit_2,dim0=1,dim1=2)
+        SCBitACC    = SCBitACC + tensorBit_1 * tensorBit_2
+        # tensorBit_2 = torch.transpose(input=tensorBit_2 ,dim0=1,dim1=2)
+    SCBitACC =  SCBitACC.mul(2** dataScaledTime)
+
+    SCResult = torch.sum(input=SCBitACC,dim=2)
+    # print(SCResult )
+    return SCResult
+    # return SCMatrixResult
+
+
+
 def TensorSC_MUL(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     bitstreamLength = len(rngSeq)
     ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
@@ -234,7 +288,8 @@ if __name__ == "__main__":
     tensor1 = torch.randint(-255,255, size=(10816, 16)).to(device)
     tensor2 = torch.randint(-255,255, size=(16, 64)).to(device)
 
-    approximateResult = matrixMulSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
+    approximateResult = matrixMulSeriesSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
+    # approximateResult = matrixMulSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
     exactResutl = tensor1.to(torch.float).matmul((tensor2).to(torch.float))
     relativeError = abs(1 - (approximateResult / exactResutl))
     absoluteError = abs(exactResutl - approximateResult )
@@ -246,6 +301,8 @@ if __name__ == "__main__":
     non_zero_RED =relativeError[non_zero_RED_index]
     maxRED, index1 = torch.max(input=non_zero_RED), torch.argmax(input=non_zero_RED)
     minRED, index2 = torch.min(input=non_zero_RED), torch.argmin(input=non_zero_RED)
+    #
+
 
     print(maxRED)
     print(minRED)

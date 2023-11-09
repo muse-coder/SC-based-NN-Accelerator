@@ -1331,8 +1331,12 @@ class SC_LinearFunction(torch.autograd.Function):
                    13, 9, 25, 17, 1]
         sobolTensor = torch.tensor(sobol_1).to(device)
 
-        approximateResult = matrixMulSC(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1), rngSeq=sobolTensor, dataWidth=8,
+        # approximateResult = matrixMulSC(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1), rngSeq=sobolTensor, dataWidth=8,
+        #                                 device=device)
+
+        approximateResult = matrixMulSeriesSC(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1), rngSeq=sobolTensor, dataWidth=8,
                                         device=device)
+
         # sobolTensor = torch.tensor(sobol_1).to(input.device)
         # ascendingSeq = torch.tensor([x for x in range(len(sobol_1))]).to(device)
         #
