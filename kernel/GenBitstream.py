@@ -1,42 +1,43 @@
 import torch
-from stream.gen import RNG, SourceGen, BSGen
-from kernel.shiftreg import ShiftReg
+# from stream.gen import RNG, SourceGen, BSGen
+# from kernel.shiftreg import ShiftReg
 import math
-class GenBitstream(torch.nn.Module):
-    """
-    Compare source data with rng_seq[rng_idx] to generate bit streams from source
-    only one rng sequence is used here
-    """
-
-    def __init__(self,
-                 rngSeq = [],device = "cuda:0" ):
-        super(GenBitstream, self).__init__()
-        # self.source_data = source_data
-        self.seqLenth = rngSeq.size(0)
-        self.device = device
-        assert rngSeq != None , "random number sequence should not be None"
-        self.RngSeq = rngSeq
-
-    def forward(self, inputData,dataWidth = 8):
-        len = self.RngSeq.size(0)
-        quantizedata = inputData / (2 ** (dataWidth - math.log2(len)))
-        # if(quantizedata-math.floor(quantizedata) >=0.5 ):
-        #     New_quantizedata = math.ceil(quantizedata)
-        # else:
-        #     New_quantizedata = math.floor(quantizedata)
-        #
-        # if (New_quantizedata==0):
-        #     return torch.zeros((len,)).to(self.device)
-
-        New_quantizedata = round(quantizedata)
-
-        sourceDataSeq = torch.round(torch.full((len,) , New_quantizedata )).to(torch.int).to(self.device)
-
-
-
-
-        bitstream = (sourceDataSeq > self.RngSeq).int()
-        return bitstream
+#
+# class GenBitstream(torch.nn.Module):
+#     """
+#     Compare source data with rng_seq[rng_idx] to generate bit streams from source
+#     only one rng sequence is used here
+#     """
+#
+#     def __init__(self,
+#                  rngSeq = [],device = "cuda:0" ):
+#         super(GenBitstream, self).__init__()
+#         # self.source_data = source_data
+#         self.seqLenth = rngSeq.size(0)
+#         self.device = device
+#         assert rngSeq != None , "random number sequence should not be None"
+#         self.RngSeq = rngSeq
+#
+#     def forward(self, inputData,dataWidth = 8):
+#         len = self.RngSeq.size(0)
+#         quantizedata = inputData / (2 ** (dataWidth - math.log2(len)))
+#         # if(quantizedata-math.floor(quantizedata) >=0.5 ):
+#         #     New_quantizedata = math.ceil(quantizedata)
+#         # else:
+#         #     New_quantizedata = math.floor(quantizedata)
+#         #
+#         # if (New_quantizedata==0):
+#         #     return torch.zeros((len,)).to(self.device)
+#
+#         New_quantizedata = round(quantizedata)
+#
+#         sourceDataSeq = torch.round(torch.full((len,) , New_quantizedata )).to(torch.int).to(self.device)
+#
+#
+#
+#
+#         bitstream = (sourceDataSeq > self.RngSeq).int()
+#         return bitstream
 
 def TensorGenBitstream(rngSeq,tensorInputData,index,dataWidth = 8 ):
     len = rngSeq.size(0)
@@ -77,7 +78,7 @@ def TensorFindHighestOne(tensor):
     tensor = tensor.to(torch.int)
 
     # 获取张量中每个元素的二进制表示
-    binary_strings = [format(int(num.item()), 'b') for num in tensor.view(-1)]
+    binary_strings = [format(int(num.item()), 'b') for num in tensor.reshape(-1)]
 
     # 计算每个二进制字符串的有效位数
     significant_bits = [len(binary_string) for binary_string in binary_strings]
@@ -109,24 +110,24 @@ def BitstreamMUL(bitstream_1,bitstream_2,leftshit_1,leftshit_2,rngSeqLengthLog,d
     resultBinary = (resultSum * (2**(2*dataWidth-rngSeqLengthLog-leftshit_2-leftshit_1)))
     return torch.tensor(resultBinary)
 
-def GenBitstreamGroup (originData_1, rngSeq , dataWidth , device):
-    Zero = 0
-    if originData_1==0:
-        Zero = 1
-    enlargedData_1, leftShift_1 = EnlargeModule(originalData=originData_1, dataWidth=dataWidth)
-    testSample_1 = GenBitstream(rngSeq=rngSeq).to(device)
-    bitstream_1 = testSample_1(enlargedData_1, dataWidth=dataWidth).to(device)
-    return bitstream_1 , leftShift_1 ,Zero
+# def GenBitstreamGroup (originData_1, rngSeq , dataWidth , device):
+#     Zero = 0
+#     if originData_1==0:
+#         Zero = 1
+#     enlargedData_1, leftShift_1 = EnlargeModule(originalData=originData_1, dataWidth=dataWidth)
+#     testSample_1 = GenBitstream(rngSeq=rngSeq).to(device)
+#     bitstream_1 = testSample_1(enlargedData_1, dataWidth=dataWidth).to(device)
+#     return bitstream_1 , leftShift_1 ,Zero
 
-def SC_MUL(originData_1 , originData_2 , rngSeq , dataWidth , device):
-    bitstreamLength = len(rngSeq)
-    ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
-    enlargedData_1, leftShift_1 = EnlargeModule(originalData=originData_1,dataWidth= dataWidth)
-    enlargedData_2, leftShift_2 = EnlargeModule(originalData=originData_2, dataWidth=dataWidth)
-    testSample_1 = GenBitstream(rngSeq=rngSeq).to(device)
-    testSample_2 = GenBitstream(rngSeq=ascendingSeq).to(device)
-    bitstream_1 = testSample_1(enlargedData_1 ,dataWidth =  dataWidth).to(device)
-    bitstream_2 = testSample_2(enlargedData_2 ,dataWidth =  dataWidth).to(device)
+# def SC_MUL(originData_1 , originData_2 , rngSeq , dataWidth , device):
+#     bitstreamLength = len(rngSeq)
+#     ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
+#     enlargedData_1, leftShift_1 = EnlargeModule(originalData=originData_1,dataWidth= dataWidth)
+#     enlargedData_2, leftShift_2 = EnlargeModule(originalData=originData_2, dataWidth=dataWidth)
+#     testSample_1 = GenBitstream(rngSeq=rngSeq).to(device)
+#     testSample_2 = GenBitstream(rngSeq=ascendingSeq).to(device)
+#     bitstream_1 = testSample_1(enlargedData_1 ,dataWidth =  dataWidth).to(device)
+#     bitstream_2 = testSample_2(enlargedData_2 ,dataWidth =  dataWidth).to(device)
     # print(bitstream_1.tolist())
     # print(bitstream_2.tolist())
 
@@ -153,6 +154,8 @@ def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
 
     tensorBit_1 = tensorGenBitstreamMulti(rngSeq = rngSeq , tensorInputData= enlargedData_1 , dataWidth= dataWidth).to(device)
     tensorBit_2 = tensorGenBitstreamMulti(rngSeq = ascendingSeq , tensorInputData= enlargedData_2 , dataWidth= dataWidth).to(device)
+    tensorBit_1 = tensorBit_1.to(torch.float)
+    tensorBit_2 = tensorBit_2.to(torch.float)
     torch.mul(input=tensorBit_1, other=(signData_1.unsqueeze(2).repeat(1,1,bitstreamLength)),out=tensorBit_1)
     torch.mul(input=tensorBit_2, other=(signData_2.unsqueeze(2).repeat(1, 1, bitstreamLength)), out=tensorBit_2)
 
@@ -174,6 +177,7 @@ def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     return SCMatrixResult
 
     # exactResult =
+
 def TensorSC_MUL(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     bitstreamLength = len(rngSeq)
     ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
@@ -220,15 +224,15 @@ def TensorSC_MUL(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
 
 
 
-
+#
 if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     sobol_1 = [0, 16, 24, 8, 12, 28, 20, 4, 6, 22, 30, 14, 10, 26, 18, 2, 3, 19, 27, 11, 15, 31, 23, 7, 5, 21, 29, 13,
                9, 25, 17, 1]
     sobolTensor = torch.tensor(sobol_1).to(device)
 
-    tensor1 = torch.randint(-255,255, size=(10816, 9)).to(device)
-    tensor2 = torch.randint(-255,255, size=(9, 32)).to(device)
+    tensor1 = torch.randint(-255,255, size=(10816, 16)).to(device)
+    tensor2 = torch.randint(-255,255, size=(16, 64)).to(device)
 
     approximateResult = matrixMulSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
     exactResutl = tensor1.to(torch.float).matmul((tensor2).to(torch.float))
