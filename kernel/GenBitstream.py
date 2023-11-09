@@ -137,8 +137,8 @@ def SC_MUL(originData_1 , originData_2 , rngSeq , dataWidth , device):
 def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     bitstreamLength = len(rngSeq)
     ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
-    enlargedData_1 , dataLeftShiftTime_1 =  TensorEnlargeModule(tensorData=tensorData_1, dataWidth=dataWidth)
-    enlargedData_2 , dataLeftShiftTime_2 =  TensorEnlargeModule(tensorData=tensorData_2, dataWidth=dataWidth)
+    enlargedData_1 , dataLeftShiftTime_1 =  TensorEnlargeModule(tensorData=abs(tensorData_1), dataWidth=dataWidth)
+    enlargedData_2 , dataLeftShiftTime_2 =  TensorEnlargeModule(tensorData=abs(tensorData_2), dataWidth=dataWidth)
     dataShape_1 = tensorData_1.size()
     dataShape_2 = tensorData_2.size()
     signData_1 =  torch.sign(tensorData_1)
@@ -166,11 +166,11 @@ def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
 
     SCResultDiagonal =  torch.diagonal(input= SCResult,dim1=2,dim2=3)
     SCResultDiagonalScaled = SCResultDiagonal.mul(2**dataScaledTime)
-    SCResultDiagonalScaledMac = torch.sum(input=SCResultDiagonalScaled,dim=2)
+    SCMatrixResult = torch.sum(input=SCResultDiagonalScaled,dim=2)
     exactMatrixResult = tensorData_1.to(torch.float).matmul(tensorData_2.to(torch.float))
     # matResult = torch.sum(input=(torch.sum(input=SCResult,dim=1)),dim=2)
-    print(SCResultDiagonalScaledMac)
-    return SCResultDiagonalScaledMac
+    print(SCMatrixResult)
+    return SCMatrixResult
     # exactResult =
 def TensorSC_MUL(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     bitstreamLength = len(rngSeq)
@@ -224,8 +224,8 @@ if __name__ == "__main__":
 
 
 
-    tensor1 = torch.randint(-128, 255, size=(500, 64)).to(device)
-    tensor2 = torch.randint(-128, 255, size=(64, 100)).to(device)
+    tensor1 = torch.randint(-255,255, size=(500, 70)).to(device)
+    tensor2 = torch.randint(-255,255, size=(70, 100)).to(device)
 
 
     # tensor1Bit =  tensorGenBitstreamMulti(rngSeq=sobolTensor, tensorInputData=tensor1, dataWidth=8)
