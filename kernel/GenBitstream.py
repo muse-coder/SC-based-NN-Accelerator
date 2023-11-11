@@ -100,6 +100,16 @@ def TensorFindHighestOne(tensor):
     result = (significant_bits_tensor - 1).to(tensor.device)
     return result
 
+def TensorLeftShiftBits(data,dataWidth):
+    # 将张量转换为整数类型（如果是浮点数）
+    dataExceptZero = torch.where(data>0 , data, 1)
+    dividedData = (2**dataWidth-1)/dataExceptZero
+    log2Result =torch.log2(dividedData)
+    log2ResultFloor = torch.floor(log2Result)
+    return log2ResultFloor
+
+
+
 
 def EnlargeModule(originalData, dataWidth):
     if originalData == 0:
@@ -111,7 +121,8 @@ def EnlargeModule(originalData, dataWidth):
     return enlargedNumber , leftShiftTime
 
 def TensorEnlargeModule(tensorData, dataWidth):
-    leftShiftTimeTensor = dataWidth - TensorFindHighestOne(tensorData) - 1
+    # leftShiftTimeTensor = dataWidth - TensorFindHighestOne(tensorData) - 1
+    leftShiftTimeTensor = TensorLeftShiftBits(data= tensorData , dataWidth= dataWidth)
     enlargedNumberTensor = tensorData *(2**leftShiftTimeTensor)
 
     return enlargedNumberTensor , leftShiftTimeTensor
@@ -183,8 +194,8 @@ def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     SCResult = (tensorBit_1.to(torch.float)).matmul( tensorBit_2.to(torch.float) )
 
     SCResultDiagonal =  torch.diagonal(input= SCResult,dim1=2,dim2=3)
-    SCResultDiagonalScaled = SCResultDiagonal.mul(2**dataScaledTime)
-    SCMatrixResult = torch.sum(input=SCResultDiagonalScaled,dim=2)
+    SCResultDiagonal = SCResultDiagonal.mul(2**dataScaledTime)
+    SCMatrixResult = torch.sum(input=SCResultDiagonal,dim=2)
     print(SCMatrixResult)
     return SCMatrixResult
 
@@ -211,7 +222,7 @@ def matrixMulSeriesSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device)
     # SCResult = torch.empty((dataShape_1[0],dataShape_2[1]),dtype=torch.float)
     SCBitACC = torch.zeros((dataShape_1[0],dataShape_2[1],dataShape_2[0]),dtype=torch.float).to(device)
     for i in range (bitstreamLength):
-        print(i)
+        # print(i)
         tensorBit_1 = tensorGenBitstreamSeries(rngSeq = rngSeq , tensorInputData= enlargedData_1 , index= i , dataWidth= dataWidth).to(device)
         tensorBit_2 = tensorGenBitstreamSeries(rngSeq = ascendingSeq , tensorInputData= enlargedData_2 ,index= i , dataWidth= dataWidth).to(device)
         tensorBit_1 = tensorBit_1.to(torch.float)
@@ -265,7 +276,6 @@ def TensorSC_MUL(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
         # 执行逐元素与运算
         # tensorC = tensorA_expanded & tensorB_expanded
 
-        andOpResult = tensorResult[:,:,]
     # resultBinary = BitstreamMUL (bitstream_1,bitstream_2,leftShift_1,leftShift_2,rngSeqLengthLog = math.log2(bitstreamLength) ,dataWidth=dataWidth).to(device)
     # print(1-resultBinary/(originData_1*originData_2))
 
@@ -285,11 +295,11 @@ if __name__ == "__main__":
                9, 25, 17, 1]
     sobolTensor = torch.tensor(sobol_1).to(device)
 
-    tensor1 = torch.randint(-255,255, size=(10816, 16)).to(device)
-    tensor2 = torch.randint(-255,255, size=(16, 64)).to(device)
+    tensor1 = torch.randint(-255,255, size=(10816, 100)).to(device)
+    tensor2 = torch.randint(-255,255, size=(100, 64)).to(device)
 
-    approximateResult = matrixMulSeriesSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
-    # approximateResult = matrixMulSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
+    # approximateResult = matrixMulSeriesSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
+    approximateResult = matrixMulSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
     exactResutl = tensor1.to(torch.float).matmul((tensor2).to(torch.float))
     relativeError = abs(1 - (approximateResult / exactResutl))
     absoluteError = abs(exactResutl - approximateResult )

@@ -79,6 +79,8 @@ def test(model, device, test_loader):
             test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
+            # print(f"data number: {torch.numel(data)} , correct : {pred.eq(target.view_as(pred)).sum().item()}")
+
 
     test_loss /= len(test_loader.dataset)
 

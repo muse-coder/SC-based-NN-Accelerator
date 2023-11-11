@@ -1336,28 +1336,13 @@ class SC_LinearFunction(torch.autograd.Function):
 
         approximateResult = matrixMulSeriesSC(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1), rngSeq=sobolTensor, dataWidth=8,
                                         device=device)
-
-        # sobolTensor = torch.tensor(sobol_1).to(input.device)
-        # ascendingSeq = torch.tensor([x for x in range(len(sobol_1))]).to(device)
-        #
-        # GEMMInputData= torch.squeeze(input_round,dim=1)
-        # GEMMInputWeight = torch.squeeze(wght_round,dim=0).transpose(0, 1)
-        # # GEMMInputWeight = wght_round.squeeze_(1,)
-        # SobolBitstreamSource = BitstreamSource(dataWidth=8, rngSeq=sobolTensor, device=device)
-        # AscendingBitstreamSource = BitstreamSource(dataWidth=8, rngSeq=ascendingSeq, device=device)
-        #
-        # NewSCbasedGEMMInstance = NewSCbasedGEMM(tensor_1=GEMMInputData, tensor_2=GEMMInputWeight, dataWidth=8, rngSeq=sobolTensor,
-        #                                         device=device)
-        # approximateResult = NewSCbasedGEMMInstance.calculate(BitstreamSourceInstanceA=SobolBitstreamSource,
-        #                                                      BitstreamSourceInstanceB=AscendingBitstreamSource)
+        # relativeError = abs(1-approximateResult/(output.squeeze(1)))
 
         new_rshift_output = int(abs(rshift_output))
-        # output = (output >> int(abs(rshift_output))).squeeze_(1)
-        # output = (output / (2 ** new_rshift_output)).squeeze_(1)
         approximateResult = (approximateResult / (2 ** new_rshift_output))
 
         if bias is not None:
-            approximateResult += bias.unsqueeze(0).expand_as(output)
+            approximateResult += bias.unsqueeze(0).expand_as(approximateResult)
 
         return approximateResult
 
