@@ -17,7 +17,7 @@ from utils import progress_bar
 def main():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-    parser.add_argument('--bitwidth', default=6, type=int, help='mac bitwidth')
+    parser.add_argument('--bitwidth', default=7, type=int, help='mac bitwidth')
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
     parser.add_argument('--ores', dest='ores', action='store_true',

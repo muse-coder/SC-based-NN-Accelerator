@@ -103,7 +103,7 @@ def TensorFindHighestOne(tensor):
 
 def TensorLeftShiftBits(data,dataWidth):
     # 将张量转换为整数类型（如果是浮点数）
-    dataExceptZero = torch.where(data>0 , data, 1)
+    dataExceptZero = torch.where(data>0 , data, 2**dataWidth-1)
     dividedData = (2**dataWidth-1)/dataExceptZero
     log2Result =torch.log2(dividedData)
     log2ResultFloor = torch.floor(log2Result)
@@ -327,10 +327,12 @@ def matrixMulSeriesSC_new(tensorData_1 , tensorData_2 , rngSeq , dataWidth , dev
     Begin:将数据维度转换成合适shape
     '''
     # dataScaledTime =  2*dataWidth -( dataLeftShiftTime_1 + dataLeftShiftTime_2 ) - math.log2(bitstreamLength)
-    dataScaledFactor_1 = 2**(dataWidth - dataLeftShiftTime_1)
+    dataScaledFactor_1 = 2**(dataWidth - dataLeftShiftTime_1 - math.log2(bitstreamLength))
     dataScaledFactor_2 = 2**(dataWidth - dataLeftShiftTime_2)
     # SCResult = torch.empty((dataShape_1[0],dataShape_2[1]),dtype=torch.float)
     SCBitACC = torch.zeros((dataShape_1[0],dataShape_2[1]),dtype=torch.float).to(device)
+    assert torch.isnan(SCBitACC).any() == False
+
     for i in range (bitstreamLength):
         # print(i)
         tensorBit_1 = tensorGenBitstreamSeries(rngSeq = rngSeq , tensorInputData= enlargedData_1 , index= i , dataWidth= dataWidth).to(device)
@@ -342,15 +344,33 @@ def matrixMulSeriesSC_new(tensorData_1 , tensorData_2 , rngSeq , dataWidth , dev
         tensorBit_1 = tensorBit_1.mul(dataScaledFactor_1)
         tensorBit_2 = tensorBit_2.mul(dataScaledFactor_2)
         SCBitACC    = SCBitACC + tensorBit_1.matmul(tensorBit_2)
+        assert torch.isinf(tensorBit_1).any() == False
+        assert torch.isinf(tensorBit_2).any() == False
+        test = torch.isinf(tensorBit_1.matmul(tensorBit_2)).any()
+        if test:
+            print(test)
+        if (tensorBit_1.matmul(tensorBit_2)).abs().max().log2()>16:
+            print("inf")
+        assert (torch.isinf(tensorBit_1.matmul(tensorBit_2)).any()) == False
+        assert torch.isinf(SCBitACC).any() == False
+        assert torch.isnan(tensorBit_1).any() == False
+        assert torch.isnan(tensorBit_2).any() == False
+        assert torch.isnan(tensorBit_1.matmul(tensorBit_2)).any() == False
+
+        assert torch.isnan(SCBitACC    ).any() == False
+
         # tensorBit_2 = torch.transpose(input=tensorBit_2 ,dim0=1,dim1=2)
 
-    SCResult =   SCBitACC * (2 ** (-math.log2(bitstreamLength)))
-
+    # SCResult =   SCBitACC * (2 ** (-math.log2(bitstreamLength)))
+    SCResult = SCBitACC
     del tensorBit_1
     del tensorBit_2
 
     endTime = time.time()
     # print(f"SeriesSCNew cost time : {endTime - startTime}")
+    SCResult = SCResult.to(torch.float32)
+    assert torch.isnan(SCResult).any() ==False
+    assert torch.isinf(SCResult).any() ==False
     return SCResult
 
 
@@ -405,18 +425,24 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     sobol_1 = [0, 16, 24, 8, 12, 28, 20, 4, 6, 22, 30, 14, 10, 26, 18, 2, 3, 19, 27, 11, 15, 31, 23, 7, 5, 21, 29, 13,
                9, 25, 17, 1]
+
+    sobol_1 = [0,8,12,4,6,14,10,2,3,11,15,7,5,13,9,1]
     sobolTensor = torch.tensor(sobol_1).to(device)
+    dataWidth = 16
     for i in range (10):
-        tensor1 = torch.randint(-255,255, size=(int(10240), 576)).to(device)
-        tensor2 = torch.randint(-255,255, size=(576, 64)).to(device)
+        tensor1 = torch.randint(-255,255, size=(int(10240), 256)).to(device)
+        tensor2 = torch.randint(-255,255, size=(256, 64)).to(device)
         print("***********")
         # approximateResult_2 = matrixMulSeriesSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
         # approximateResult_1 = matrixMacSeperate(tensorData_1=tensor1 , tensorData_2= tensor2, num_slices= 4 ,  rngSeq=sobolTensor ,dataWidth=8 ,device= device)
         approximateResult_3 = matrixMulSeriesSC_new(tensorData_1=tensor1, tensorData_2=tensor2, rngSeq=sobolTensor,
+                                                dataWidth=dataWidth, device=device)
+        approximateResult_2 = matrixMulSeriesSC_new(tensorData_1=tensor1, tensorData_2=tensor2, rngSeq=sobolTensor,
                                                 dataWidth=8, device=device)
+
         print("***********\n\n")
         # assert torch.equal(approximateResult_1,approximateResult_2)
-        # assert torch.equal(approximateResult_2,approximateResult_3)
+        assert torch.equal(approximateResult_2,approximateResult_3)
         exactResutl = tensor1.to(torch.float).matmul((tensor2).to(torch.float))
         relativeError = abs(1 - (approximateResult_3 / exactResutl))
         absoluteError = abs(exactResutl - approximateResult_3 )

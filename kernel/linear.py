@@ -1190,7 +1190,98 @@ class FxpLinear(torch.nn.Linear):
         
         return FxpLinearFunction.apply(input, self.weight, self.bias, self.rshift_input, self.rshift_wght, self.rshift_output, self.max_abs_input, self.max_abs_wght)
 
-    
+
+class SCLinear(torch.nn.Linear):
+    """
+    this module is the fully connected layer, with binary input and binary output
+    its API is similar to the parent class (input/output feature count, bias flag), except:
+    1) binary data scale factor
+    2) binary weight
+    3) binary bias
+    4) mac cycle
+    """
+
+    def __init__(self,
+                 in_features,
+                 out_features,
+                 bias=True,
+                 binary_weight=None,
+                 binary_bias=None,
+                 bitwidth=8,
+                 keep_res="input",  # keep the resolution of input/output
+                 more_res="input",  # assign more resolution to input/weight
+                 rounding="round"):
+        super(SCLinear, self).__init__(in_features, out_features, bias)
+
+        # weight and bias
+        if binary_weight is not None:
+            self.weight.data = binary_weight
+
+        if bias and (binary_bias is not None):
+            self.bias.data = binary_bias
+
+        # bitwidth of abs
+        if isinstance(bitwidth, tuple):
+            self.bw_input, self.bw_wght = (bitwidth[0] - 1, bitwidth[1] - 1)
+        else:
+            if keep_res == "input":
+                self.bw_input, self.bw_wght = (bitwidth - 1, bitwidth - 1)
+            elif keep_res == "output":
+                if bitwidth % 2 == 0:
+                    self.bw_input, self.bw_wght = (int(bitwidth / 2 - 1), int(bitwidth / 2 - 1))
+                else:
+                    if more_res == "input":
+                        self.bw_input, self.bw_wght = (int((bitwidth + 1) / 2 - 1), int((bitwidth - 1) / 2 - 1))
+                    elif more_res == "weight":
+                        self.bw_input, self.bw_wght = (int((bitwidth - 1) / 2 - 1), int((bitwidth + 1) / 2 - 1))
+                    else:
+                        raise ValueError(
+                            "more_res should be either 'input' or 'weight' when bitwidth is not a tuple and keep_res is 'output'.")
+            else:
+                raise ValueError("keep_res should be either 'input' or 'output' when bitwidth is not a tuple.")
+
+        # max abs value
+        self.max_abs_input = 2 ** self.bw_input
+        self.max_abs_wght = 2 ** self.bw_wght
+
+        # rounding mode
+        self.rounding = rounding
+
+        self.rshift_input = None
+        self.rshift_wght = None
+        self.rshift_output = None
+
+    @autocast()
+    def forward(self, input):
+        # See the autograd section for explanation of what happens here.
+        with torch.no_grad():
+            if self.rshift_input is None:
+                input_max_int = input.abs().max().log2()
+                if self.rounding == "round":
+                    input_max_int = input_max_int.round()
+                elif self.rounding == "floor":
+                    input_max_int = input_max_int.floor()
+                elif self.rounding == "ceil":
+                    input_max_int = input_max_int.ceil()
+                self.rshift_input = input_max_int - self.bw_input
+
+            if self.rshift_wght is None:
+                wght_max_int = self.weight.abs().max().log2()
+                if self.rounding == "round":
+                    wght_max_int = wght_max_int.round()
+                elif self.rounding == "floor":
+                    wght_max_int = wght_max_int.floor()
+                elif self.rounding == "ceil":
+                    wght_max_int = wght_max_int.ceil()
+                self.rshift_wght = wght_max_int - self.bw_wght
+
+            if self.rshift_output is None:
+                self.rshift_output = 0 - self.rshift_input - self.rshift_wght
+
+        return SC_LinearFunction.apply(input, self.weight, self.bias, self.rshift_input, self.rshift_wght,
+                                       self.rshift_output, self.max_abs_input, self.max_abs_wght)
+
+
 # Inherit from Function
 class FxpLinearFunction(torch.autograd.Function):
 
@@ -1311,8 +1402,8 @@ class SC_LinearFunction(torch.autograd.Function):
             torch.round(input * (2 ** rshift_input), out=input_round)
         else:
             print("rshift >=0 ")
-            torch.round(input * (2 ** rshift_input), out=input_round)
-
+            # torch.round(input * (2 ** rshift_input), out=input_round)
+        # assert input_round.abs().max().log2().ceil()<=8
         torch.clamp(input_round.unsqueeze_(1), bot_input, top_input, out=input_round)
 
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -1326,11 +1417,13 @@ class SC_LinearFunction(torch.autograd.Function):
             torch.round(weight * (2 ** -rshift_wght), out=wght_round)
         torch.clamp(wght_round.unsqueeze_(0), bot_wght, top_wght, out=wght_round)
 
-        output = torch.empty(0, device=weight.device)
-        torch.matmul(input_round, wght_round.transpose(1, 2), out=output)
+        # output = torch.empty(0, device=weight.device)
+        # torch.matmul(input_round, wght_round.transpose(1, 2), out=output)
 
         sobol_1 = [0, 16, 24, 8, 12, 28, 20, 4, 6, 22, 30, 14, 10, 26, 18, 2, 3, 19, 27, 11, 15, 31, 23, 7, 5, 21, 29,
                    13, 9, 25, 17, 1]
+
+        # sobol_1 = [0, 8, 12, 4, 6, 14, 10, 2, 3, 11, 15, 7, 5, 13, 9, 1]
         sobolTensor = torch.tensor(sobol_1).to(device)
 
         # approximateResult = matrixMulSC(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1), rngSeq=sobolTensor, dataWidth=8,
@@ -1339,7 +1432,12 @@ class SC_LinearFunction(torch.autograd.Function):
         approximateResult = matrixMulSeriesSC_new(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1) , rngSeq=sobolTensor, dataWidth=8,
                                         device=device)
         # relativeError = abs(1-approximateResult/(output.squeeze(1)))
-
+        output = torch.empty(0, device=weight.device)
+        torch.matmul(input_round, wght_round.transpose(1, 2), out=output)
+        relativeError = abs(1-approximateResult/(output.squeeze(1)))
+        # if (approximateResult.abs().max().log2() != output.abs().max().log2().round()):
+        #     print("error")
+        # assert approximateResult.abs().max().log2().round() == output.abs().max().log2().round()
         new_rshift_output = int(abs(rshift_output))
         approximateResult = (approximateResult / (2 ** new_rshift_output))
 

@@ -729,6 +729,7 @@ class SC_Conv2d(torch.nn.Conv2d):
         weight = self.weight.view(self.weight.size()[0], -1)
         mm_out = SC_LinearFunction.apply(input_reshape, weight, None, self.rshift_input, self.rshift_wght,
                                          self.rshift_output, self.max_abs_input, self.max_abs_wght)
+        assert torch.isnan(mm_out).any() ==False
         mm_out_reshape = mm_out.reshape(input.size()[0], -1, mm_out.size()[-1])
         mm_out_transpose = mm_out_reshape.transpose(1, 2)
         output = torch.nn.functional.fold(mm_out_transpose, output_size, (1, 1))

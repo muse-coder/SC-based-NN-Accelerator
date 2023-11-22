@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from kernel.conv import SC_Conv2d
-from kernel.linear import FxpLinear
+from kernel.linear import SCLinear
 
 class BasicBlock(nn.Module):
     expansion = 1
@@ -81,7 +81,7 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
-        self.linear = FxpLinear(512*block.expansion, num_classes, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
+        self.linear = SCLinear(512*block.expansion, num_classes, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
 
     def _make_layer(self, block, planes, num_blocks, stride, bitwidth, keep_res="input", more_res="input"):
         strides = [stride] + [1]*(num_blocks-1)

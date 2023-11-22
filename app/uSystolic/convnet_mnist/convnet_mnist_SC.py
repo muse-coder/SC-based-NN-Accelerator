@@ -8,7 +8,7 @@ from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 from six.moves import urllib
 from kernel.conv import *
-from kernel.linear import FxpLinear
+from kernel.linear import SCLinear
 
 opener = urllib.request.build_opener()
 opener.addheaders = [('User-agent', 'Mozilla/5.0')]
@@ -28,9 +28,9 @@ class Net(nn.Module):
                                bitwidth=bitwidth[1], keep_res=keep_res, more_res=more_res)
         self.dropout1 = nn.Dropout(0.25)
         self.dropout2 = nn.Dropout(0.5)
-        self.fc1 = FxpLinear(9216, 128, binary_weight=state_list[4], binary_bias=state_list[5],
+        self.fc1 = SCLinear(9216, 128, binary_weight=state_list[4], binary_bias=state_list[5],
                              bitwidth=bitwidth[2], keep_res=keep_res, more_res=more_res)
-        self.fc2 = FxpLinear(128, 10, binary_weight=state_list[6], binary_bias=state_list[7], bitwidth=bitwidth[3],
+        self.fc2 = SCLinear(128, 10, binary_weight=state_list[6], binary_bias=state_list[7], bitwidth=bitwidth[3],
                              keep_res=keep_res, more_res=more_res)
         # else:
         #     self.conv1 = nn.Conv2d(1, 32, 3, 1)
