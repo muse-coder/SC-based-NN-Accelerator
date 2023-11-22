@@ -2,7 +2,7 @@ import torch
 import math
 from kernel.utils import conv2d_output_shape, num2tuple
 from torch.cuda.amp import autocast
-from SC_GEMM import *
+from kernel.SC_GEMM import *
 class SC_Conv2d(torch.nn.Conv2d):
     """
     This module is the 2d conv layer, with binary input and binary output

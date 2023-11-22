@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 import os
 import argparse
 
-import resnet18_fxp
+import resnet18_SC
 from utils import progress_bar
 
 def main():
@@ -47,7 +47,7 @@ def main():
     trainset = torchvision.datasets.CIFAR10(
         root='D:\postgraduate\Accelerator\\Unary Computing\\data\cifar10', train=True, download=True, transform=transform_train)
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=128, shuffle=True, num_workers=2)
+        trainset, batch_size=16, shuffle=True, num_workers=2)
 
     testset = torchvision.datasets.CIFAR10(
         root='D:\postgraduate\Accelerator\\Unary Computing\\data\cifar10', train=False, download=True, transform=transform_test)
@@ -59,7 +59,7 @@ def main():
 
     # Model
     print('==> Building model..')
-    net = resnet18_fxp.ResNet18(bitwidth=args.bitwidth, keep_res="output" if args.ores else "input", more_res="weight" if args.wmres else "input")
+    net = resnet18_SC.ResNet18(bitwidth=args.bitwidth, keep_res="output" if args.ores else "input", more_res="weight" if args.wmres else "input")
     net = net.to(device)
     if device == 'cuda':
         net = torch.nn.DataParallel(net)

@@ -7,7 +7,7 @@ Reference:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from kernel.conv import FxpConv2d
+from kernel.conv import SC_Conv2d
 from kernel.linear import FxpLinear
 
 class BasicBlock(nn.Module):
@@ -15,17 +15,17 @@ class BasicBlock(nn.Module):
 
     def __init__(self, in_planes, planes, stride=1, bitwidth=None, keep_res="input", more_res="input"):
         super(BasicBlock, self).__init__()
-        self.conv1 = FxpConv2d(
+        self.conv1 = SC_Conv2d(
             in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = FxpConv2d(planes, planes, kernel_size=3,
+        self.conv2 = SC_Conv2d(planes, planes, kernel_size=3,
                                stride=1, padding=1, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
         self.bn2 = nn.BatchNorm2d(planes)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
-                FxpConv2d(in_planes, self.expansion*planes,
+                SC_Conv2d(in_planes, self.expansion*planes,
                           kernel_size=1, stride=stride, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res),
                 nn.BatchNorm2d(self.expansion*planes)
             )
@@ -43,19 +43,19 @@ class Bottleneck(nn.Module):
 
     def __init__(self, in_planes, planes, stride=1, bitwidth=None, keep_res="input", more_res="input"):
         super(Bottleneck, self).__init__()
-        self.conv1 = FxpConv2d(in_planes, planes, kernel_size=1, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
+        self.conv1 = SC_Conv2d(in_planes, planes, kernel_size=1, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = FxpConv2d(planes, planes, kernel_size=3,
+        self.conv2 = SC_Conv2d(planes, planes, kernel_size=3,
                                stride=stride, padding=1, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
         self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = FxpConv2d(planes, self.expansion *
+        self.conv3 = SC_Conv2d(planes, self.expansion *
                                planes, kernel_size=1, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
         self.bn3 = nn.BatchNorm2d(self.expansion*planes)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
-                FxpConv2d(in_planes, self.expansion*planes,
+                SC_Conv2d(in_planes, self.expansion*planes,
                           kernel_size=1, stride=stride, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res),
                 nn.BatchNorm2d(self.expansion*planes)
             )
@@ -74,7 +74,7 @@ class ResNet(nn.Module):
         super(ResNet, self).__init__()
         self.in_planes = 64
 
-        self.conv1 = FxpConv2d(3, 64, kernel_size=3,
+        self.conv1 = SC_Conv2d(3, 64, kernel_size=3,
                                stride=1, padding=1, bias=False, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)
         self.bn1 = nn.BatchNorm2d(64)
         self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1, bitwidth=bitwidth, keep_res=keep_res, more_res=more_res)

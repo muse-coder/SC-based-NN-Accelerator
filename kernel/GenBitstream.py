@@ -2,7 +2,8 @@ import torch
 # from stream.gen import RNG, SourceGen, BSGen
 # from kernel.shiftreg import ShiftReg
 import math
-#
+import sys
+import time
 # class GenBitstream(torch.nn.Module):
 #     """
 #     Compare source data with rng_seq[rng_idx] to generate bit streams from source
@@ -158,7 +159,17 @@ def BitstreamMUL(bitstream_1,bitstream_2,leftshit_1,leftshit_2,rngSeqLengthLog,d
     # print(1-resultBinary/(originData_1*originData_2))
     return resultBinary
 
+def getMemorySpace(tensor_variable):
+
+# 获取Tensor数据占用的内存大小（以字节为单位）
+    data_size_in_bytes = tensor_variable.element_size() * tensor_variable.numel()
+
+# 将字节大小转换为更常见的单位，如千兆字节（MB）
+    data_size_in_megabytes = data_size_in_bytes / (1024**2)
+    return data_size_in_megabytes
+
 def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
+    startTime = time.time()
     bitstreamLength = len(rngSeq)
     ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
     enlargedData_1 , dataLeftShiftTime_1 =  TensorEnlargeModule(tensorData=abs(tensorData_1), dataWidth=dataWidth)
@@ -174,35 +185,91 @@ def matrixMulSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
     dataLeftShiftTime_2 = (dataLeftShiftTime_2.unsqueeze(0)).repeat(dataShape_1[0],1,1)
     dataLeftShiftTime_2 = torch.transpose(input=dataLeftShiftTime_2,dim0=1,dim1=2)
     dataScaledTime =  2*dataWidth -( dataLeftShiftTime_1 + dataLeftShiftTime_2) - math.log2(bitstreamLength)
+    del dataLeftShiftTime_1
+    del dataLeftShiftTime_2
 
     tensorBit_1 = tensorGenBitstreamMulti(rngSeq = rngSeq , tensorInputData= enlargedData_1 , dataWidth= dataWidth).to(device)
     tensorBit_2 = tensorGenBitstreamMulti(rngSeq = ascendingSeq , tensorInputData= enlargedData_2 , dataWidth= dataWidth).to(device)
-    tensorBit_1 = tensorBit_1.to(torch.float)
-    tensorBit_2 = tensorBit_2.to(torch.float)
+    tensorBit_1 = tensorBit_1.to(torch.float16)
+    tensorBit_2 = tensorBit_2.to(torch.float16)
     torch.mul(input=tensorBit_1, other=(signData_1.unsqueeze(2).repeat(1,1,bitstreamLength)),out=tensorBit_1)
     torch.mul(input=tensorBit_2, other=(signData_2.unsqueeze(2).repeat(1, 1, bitstreamLength)), out=tensorBit_2)
 
-
-    tensorBit_1 = (tensorBit_1.unsqueeze(1)).repeat(1,dataShape_2[1],1,1)
-    tensorBit_2 = (tensorBit_2.unsqueeze(0)).repeat(dataShape_1[0], 1, 1,1)
-    tensorBit_2 = torch.transpose(input=tensorBit_2,dim0=1,dim1=2)
-    tensorBit_2 = torch.transpose(input=tensorBit_2 ,dim0=2,dim1=3)
+    del signData_1
+    del signData_2
+    # tensorBit_1 = (tensorBit_1.unsqueeze(1)).repeat(1,dataShape_2[1],1,1)
+    # tensorBit_2 = (tensorBit_2.unsqueeze(0)).repeat(dataShape_1[0], 1, 1,1)
+    # tensorBit_2 = torch.transpose(input=tensorBit_2,dim0=1,dim1=2)
+    # tensorBit_2 = torch.transpose(input=tensorBit_2 ,dim0=2,dim1=3)
     '''
         End:将数据维度转换成合适shape
     '''
+    # tensorBit_1_old = (tensorBit_1.unsqueeze(1)).repeat(1,dataShape_2[1],1,1)
+    # tensorBit_2_old = (tensorBit_2.unsqueeze(0)).repeat(dataShape_1[0], 1, 1,1)
 
-    SCResult = (tensorBit_1.to(torch.float)).matmul( tensorBit_2.to(torch.float) )
+
+    tensorBit_1 = tensorBit_1.unsqueeze(1).expand(-1, dataShape_2[1],-1,-1)
+    tensorBit_2 = tensorBit_2.unsqueeze(0).expand(dataShape_1[0], -1, -1, -1)
+    tensorBit_2 = tensorBit_2.transpose(1, 2).transpose(2, 3)
+
+    # 执行矩阵乘法
+
+    SCResult = (tensorBit_1).matmul(tensorBit_2)
+
+    del tensorBit_1
+    del tensorBit_2
 
     SCResultDiagonal =  torch.diagonal(input= SCResult,dim1=2,dim2=3)
     SCResultDiagonal = SCResultDiagonal.mul(2**dataScaledTime)
     SCMatrixResult = torch.sum(input=SCResultDiagonal,dim=2)
-    print(SCMatrixResult)
+    # print(SCMatrixResult)
+    endTime = time.time()
+    print(f"Parallel MulSC cost time : {endTime - startTime}")
+
     return SCMatrixResult
 
     # exactResult =
 
 
+def splitTensor(tensorA, num_slices):
+    m, n = tensorA.shape
+
+    # 计算每个子张量的宽度
+    width = n // num_slices
+
+    # 初始化一个空列表，用于存储切片后的子张量
+    sliced_tensors = []
+
+    # 循环生成切片
+    for i in range(num_slices):
+        start_col = i * width
+        end_col = (i + 1) * width if i < num_slices - 1 else n
+        sliced_tensor = tensorA[:, start_col:end_col]
+        sliced_tensors.append(sliced_tensor)
+
+    return sliced_tensors
+
+
+
+def matrixMacSeperate(tensorData_1 , tensorData_2 ,num_slices, rngSeq , dataWidth , device):
+    dataShape_1 = tensorData_1.size()
+    dataShape_2 = tensorData_2.size()
+    subTensorSet = splitTensor(tensorA= tensorData_2, num_slices= num_slices)
+    accumulateRes = torch.zeros(dataShape_1[0],dataShape_2[1]).to(device)
+
+    # 计算每个子张量的宽度
+    width = dataShape_2[1] // num_slices
+    # 循环生成切片
+    for (i  , subTensor )in  enumerate(subTensorSet):
+        start_col = i * width
+        end_col = (i + 1) * width if i < num_slices - 1 else dataShape_2[1]
+        accumulateRes[:, start_col:end_col] = matrixMulSeriesSC(tensorData_1=tensorData_1 , tensorData_2= subTensor,rngSeq= rngSeq , dataWidth= dataWidth, device=device)
+
+    return  accumulateRes
+
+
 def matrixMulSeriesSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
+    startTime =  time.time()
     bitstreamLength = len(rngSeq)
     ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
     enlargedData_1 , dataLeftShiftTime_1 =  TensorEnlargeModule(tensorData=abs(tensorData_1), dataWidth=dataWidth)
@@ -225,8 +292,8 @@ def matrixMulSeriesSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device)
         # print(i)
         tensorBit_1 = tensorGenBitstreamSeries(rngSeq = rngSeq , tensorInputData= enlargedData_1 , index= i , dataWidth= dataWidth).to(device)
         tensorBit_2 = tensorGenBitstreamSeries(rngSeq = ascendingSeq , tensorInputData= enlargedData_2 ,index= i , dataWidth= dataWidth).to(device)
-        tensorBit_1 = tensorBit_1.to(torch.float)
-        tensorBit_2 = tensorBit_2.to(torch.float)
+        tensorBit_1 = tensorBit_1.to(torch.float16)
+        tensorBit_2 = tensorBit_2.to(torch.float16)
         torch.mul(input=tensorBit_1, other=(signData_1),out=tensorBit_1)
         torch.mul(input=tensorBit_2, other=(signData_2), out=tensorBit_2)
         tensorBit_1 = (tensorBit_1.unsqueeze(1)).repeat(1,dataShape_2[1],1)
@@ -235,11 +302,56 @@ def matrixMulSeriesSC(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device)
         SCBitACC    = SCBitACC + tensorBit_1 * tensorBit_2
         # tensorBit_2 = torch.transpose(input=tensorBit_2 ,dim0=1,dim1=2)
     SCBitACC =  SCBitACC.mul(2** dataScaledTime)
-
+    del tensorBit_1
+    del tensorBit_2
+    del dataScaledTime
     SCResult = torch.sum(input=SCBitACC,dim=2)
     # print(SCResult )
+    endTime = time.time()
+    print(f"SeriesSC cost time : {endTime - startTime}")
     return SCResult
     # return SCMatrixResult
+
+
+def matrixMulSeriesSC_new(tensorData_1 , tensorData_2 , rngSeq , dataWidth , device):
+    startTime =  time.time()
+    bitstreamLength = len(rngSeq)
+    ascendingSeq = torch.tensor([x for x in range(bitstreamLength)]).to(device)
+    enlargedData_1 , dataLeftShiftTime_1 =  TensorEnlargeModule(tensorData=abs(tensorData_1), dataWidth=dataWidth)
+    enlargedData_2 , dataLeftShiftTime_2 =  TensorEnlargeModule(tensorData=abs(tensorData_2), dataWidth=dataWidth)
+    dataShape_1 = tensorData_1.size()
+    dataShape_2 = tensorData_2.size()
+    signData_1 =  torch.sign(tensorData_1)
+    signData_2 =  torch.sign(tensorData_2)
+    '''
+    Begin:将数据维度转换成合适shape
+    '''
+    # dataScaledTime =  2*dataWidth -( dataLeftShiftTime_1 + dataLeftShiftTime_2 ) - math.log2(bitstreamLength)
+    dataScaledFactor_1 = 2**(dataWidth - dataLeftShiftTime_1)
+    dataScaledFactor_2 = 2**(dataWidth - dataLeftShiftTime_2)
+    # SCResult = torch.empty((dataShape_1[0],dataShape_2[1]),dtype=torch.float)
+    SCBitACC = torch.zeros((dataShape_1[0],dataShape_2[1]),dtype=torch.float).to(device)
+    for i in range (bitstreamLength):
+        # print(i)
+        tensorBit_1 = tensorGenBitstreamSeries(rngSeq = rngSeq , tensorInputData= enlargedData_1 , index= i , dataWidth= dataWidth).to(device)
+        tensorBit_2 = tensorGenBitstreamSeries(rngSeq = ascendingSeq , tensorInputData= enlargedData_2 ,index= i , dataWidth= dataWidth).to(device)
+        tensorBit_1 = tensorBit_1.to(torch.float16)
+        tensorBit_2 = tensorBit_2.to(torch.float16)
+        torch.mul(input=tensorBit_1, other=(signData_1),out=tensorBit_1)
+        torch.mul(input=tensorBit_2, other=(signData_2), out=tensorBit_2)
+        tensorBit_1 = tensorBit_1.mul(dataScaledFactor_1)
+        tensorBit_2 = tensorBit_2.mul(dataScaledFactor_2)
+        SCBitACC    = SCBitACC + tensorBit_1.matmul(tensorBit_2)
+        # tensorBit_2 = torch.transpose(input=tensorBit_2 ,dim0=1,dim1=2)
+
+    SCResult =   SCBitACC * (2 ** (-math.log2(bitstreamLength)))
+
+    del tensorBit_1
+    del tensorBit_2
+
+    endTime = time.time()
+    # print(f"SeriesSCNew cost time : {endTime - startTime}")
+    return SCResult
 
 
 
@@ -294,23 +406,28 @@ if __name__ == "__main__":
     sobol_1 = [0, 16, 24, 8, 12, 28, 20, 4, 6, 22, 30, 14, 10, 26, 18, 2, 3, 19, 27, 11, 15, 31, 23, 7, 5, 21, 29, 13,
                9, 25, 17, 1]
     sobolTensor = torch.tensor(sobol_1).to(device)
-
-    tensor1 = torch.randint(-255,255, size=(10816, 100)).to(device)
-    tensor2 = torch.randint(-255,255, size=(100, 64)).to(device)
-
-    # approximateResult = matrixMulSeriesSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
-    approximateResult = matrixMulSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
-    exactResutl = tensor1.to(torch.float).matmul((tensor2).to(torch.float))
-    relativeError = abs(1 - (approximateResult / exactResutl))
-    absoluteError = abs(exactResutl - approximateResult )
-    maxRED,index1 = torch.max(input=relativeError) , torch.argmax(input=relativeError)
-    minRED,index2 = torch.min(input=relativeError) , torch.argmin(input=relativeError)
-    maxAED,index1 = torch.max(input=absoluteError) , torch.argmax(input=absoluteError)
-    minAED,index2 = torch.min(input=absoluteError) , torch.argmin(input=absoluteError)
-    non_zero_RED_index = torch.argwhere(input= relativeError)
-    non_zero_RED =relativeError[non_zero_RED_index]
-    maxRED, index1 = torch.max(input=non_zero_RED), torch.argmax(input=non_zero_RED)
-    minRED, index2 = torch.min(input=non_zero_RED), torch.argmin(input=non_zero_RED)
+    for i in range (10):
+        tensor1 = torch.randint(-255,255, size=(int(10240), 576)).to(device)
+        tensor2 = torch.randint(-255,255, size=(576, 64)).to(device)
+        print("***********")
+        # approximateResult_2 = matrixMulSeriesSC(tensorData_1=tensor1 , tensorData_2= tensor2, rngSeq=sobolTensor ,dataWidth=8 ,device= device)
+        # approximateResult_1 = matrixMacSeperate(tensorData_1=tensor1 , tensorData_2= tensor2, num_slices= 4 ,  rngSeq=sobolTensor ,dataWidth=8 ,device= device)
+        approximateResult_3 = matrixMulSeriesSC_new(tensorData_1=tensor1, tensorData_2=tensor2, rngSeq=sobolTensor,
+                                                dataWidth=8, device=device)
+        print("***********\n\n")
+        # assert torch.equal(approximateResult_1,approximateResult_2)
+        # assert torch.equal(approximateResult_2,approximateResult_3)
+        exactResutl = tensor1.to(torch.float).matmul((tensor2).to(torch.float))
+        relativeError = abs(1 - (approximateResult_3 / exactResutl))
+        absoluteError = abs(exactResutl - approximateResult_3 )
+        maxRED,index1 = torch.max(input=relativeError) , torch.argmax(input=relativeError)
+        minRED,index2 = torch.min(input=relativeError) , torch.argmin(input=relativeError)
+        maxAED,index1 = torch.max(input=absoluteError) , torch.argmax(input=absoluteError)
+        minAED,index2 = torch.min(input=absoluteError) , torch.argmin(input=absoluteError)
+        non_zero_RED_index = torch.argwhere(input= relativeError)
+        non_zero_RED =relativeError[non_zero_RED_index]
+        maxRED, index1 = torch.max(input=non_zero_RED), torch.argmax(input=non_zero_RED)
+        minRED, index2 = torch.min(input=non_zero_RED), torch.argmin(input=non_zero_RED)
     #
 
 

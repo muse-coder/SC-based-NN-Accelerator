@@ -14,12 +14,12 @@ import argparse
 from resnet18 import *
 from utils import progress_bar
 
-def main():
+def main(args=None):
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
-    args = parser.parse_args()
+    args = parser.parse_args(args)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     best_acc = 0  # best test accuracy
@@ -117,9 +117,9 @@ def main():
 
 #                 progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
 #                              % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-        
+
         print(len(testloader), '| Acc: %.3f%% (%d/%d)' % (100.*correct/total, correct, total))
-        
+
         # Save checkpoint.
         acc = 100.*correct/total
         if acc > best_acc:
@@ -139,6 +139,6 @@ def main():
         train(epoch)
         best_acc = test(epoch, best_acc)
         scheduler.step()
-        
+
 if __name__ == '__main__':
-    main()
+    main(['--resume'])

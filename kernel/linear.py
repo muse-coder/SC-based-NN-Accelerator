@@ -1311,6 +1311,8 @@ class SC_LinearFunction(torch.autograd.Function):
             torch.round(input * (2 ** rshift_input), out=input_round)
         else:
             print("rshift >=0 ")
+            torch.round(input * (2 ** rshift_input), out=input_round)
+
         torch.clamp(input_round.unsqueeze_(1), bot_input, top_input, out=input_round)
 
         # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -1334,7 +1336,7 @@ class SC_LinearFunction(torch.autograd.Function):
         # approximateResult = matrixMulSC(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1), rngSeq=sobolTensor, dataWidth=8,
         #                                 device=device)
 
-        approximateResult = matrixMulSeriesSC(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1), rngSeq=sobolTensor, dataWidth=8,
+        approximateResult = matrixMulSeriesSC_new(tensorData_1=input_round.squeeze(1), tensorData_2=(wght_round.squeeze(0)).transpose(0,1) , rngSeq=sobolTensor, dataWidth=8,
                                         device=device)
         # relativeError = abs(1-approximateResult/(output.squeeze(1)))
 
